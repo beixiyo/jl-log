@@ -1,0 +1,45 @@
+{
+    "name": "@jl-org/log",
+    "version": "0.0.1",
+    "description": "超级美丽的打印工具",
+    "main": "dist/index.js",
+    "module": "dist/index.js",
+    "type": "module",
+    "types": "dist/typings/index.d.ts",
+    "files": [
+        "/dist"
+    ],
+    "exports": {
+        "require": {
+            "types": "./dist/typings/index.d.ts",
+            "default": "./dist/index.cjs"
+        },
+        "import": {
+            "types": "./dist/typings/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "rollup -c && tsc-alias"
+    },
+    "keywords": [
+        "log",
+        "console"
+    ],
+    "author": "cjl",
+    "license": "MIT",
+    "devDependencies": {
+        "@rollup/plugin-alias": "^5.1.0",
+        "@rollup/plugin-terser": "^0.4.4",
+        "@rollup/plugin-typescript": "^11.1.6",
+        "@types/node": "^20.12.7",
+        "rollup": "^4.16.1",
+        "rollup-plugin-clear": "^2.0.7",
+        "tsc-alias": "^1.8.8",
+        "tslib": "^2.6.2"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "homepage": "https://github.com/beixiyo/jl-log"
+}
