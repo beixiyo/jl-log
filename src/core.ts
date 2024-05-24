@@ -40,38 +40,33 @@ export const genLog = (opts: LogOpts = {}) => {
         prettyPrint(title, text, successColor, needLogVal)
     }
 
-    /**
-     * @example
-     * const data = [
-     *   { id: 1, name: 'John', age: 20 },
-     *   { id: 2, name: 'Jane', age: 21 },
-     * ]
-     * table(data)
-     */
     const table = <T extends object>(data: T[]) => {
         if (!needLogVal) return
 
         const
             keys = Object.keys(data[0]),
-            headers = '%c ' + keys.map(key => `${key}%c`)
+            headerStr = '%c ' + keys.map(key => `${key}%c`)
                 .join(' ')
                 .slice(0, -2),
 
-            genFormatter = (color = '#F2F7FF', bgc = '#1455CC') => Array.from({ length: data.length }, () =>
-                `color: ${color}; background-color: ${bgc}; padding: 2px 10px;`
-            )
+            genFormatter = (color = '#F2F7FF', bgc = '#1455CC') => Array
+                .from({ length: keys.length }, () =>
+                    `color: ${color}; background-color: ${bgc}; padding: 2px 10px;`
+                )
 
         console.log(
-            headers,
+            headerStr,
             ...genFormatter(header!.color, header!.bgc)
         )
 
         data.forEach((item: any) => {
-            const headers = '%c' + keys.map((key) => `${item[key]} %c`)
+            const headerStr = '%c' + keys
+                .map((key) => `${item[key]} %c`)
                 .join(' ')
                 .slice(0, -2)
+
             console.log(
-                headers,
+                headerStr,
                 ...genFormatter(row!.color, row!.bgc)
             )
         })
@@ -111,6 +106,14 @@ export const genLog = (opts: LogOpts = {}) => {
         warn,
         success,
         img,
+        /**
+         * @example
+         * const data = [
+         *   { id: 1, name: 'John', age: 20 },
+         *   { id: 2, name: 'Jane', age: 21 },
+         * ]
+         * table(data)
+         */
         table
     }
 }
