@@ -16,25 +16,25 @@ export const genLog = (opts: LogOpts = {}) => {
 
     const needLogVal = needLog()
 
-    const info = (textOrTitle: string, content = '') => {
+    const info = (textOrTitle: any, content: any = '') => {
         const title = isEmpty(content) ? 'Info' : textOrTitle
         const text = isEmpty(content) ? textOrTitle : content
         prettyPrint(title, text, infoColor, needLogVal)
     }
 
-    const error = (textOrTitle: string, content = '') => {
+    const error = (textOrTitle: any, content: any = '') => {
         const title = isEmpty(content) ? 'Error' : textOrTitle
         const text = isEmpty(content) ? textOrTitle : content
         prettyPrint(title, text, errorColor, needLogVal)
     }
 
-    const warn = (textOrTitle: string, content = '') => {
+    const warn = (textOrTitle: any, content: any = '') => {
         const title = isEmpty(content) ? 'Warning' : textOrTitle
         const text = isEmpty(content) ? textOrTitle : content
         prettyPrint(title, text, warningColor, needLogVal)
     }
 
-    const success = (textOrTitle: string, content = '') => {
+    const success = (textOrTitle: any, content: any = '') => {
         const title = isEmpty(content) ? 'Success ' : textOrTitle
         const text = isEmpty(content) ? textOrTitle : content
         prettyPrint(title, text, successColor, needLogVal)
@@ -61,7 +61,14 @@ export const genLog = (opts: LogOpts = {}) => {
 
         data.forEach((item: any) => {
             const headerStr = '%c' + keys
-                .map((key) => `${item[key]} %c`)
+                .map((key) => {
+                    let val = item[key]
+                    if (typeof val === 'object') {
+                        val = JSON.stringify(val)
+                    }
+                    
+                    return `${val} %c`
+                })
                 .join(' ')
                 .slice(0, -2)
 

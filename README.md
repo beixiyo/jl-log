@@ -22,7 +22,8 @@ const log = genLog(/** 配置，详见文档注释 */)
 log.info('hello world')
 log.warn('hello world')
 log.error('hello world')
-log.success('hello world')
+/** 标题可选 */
+log.success('SuccessTitle', 'hello world')
 
 
 const data = [

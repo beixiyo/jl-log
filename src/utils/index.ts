@@ -1,4 +1,4 @@
-import type { LogOpts } from '@/types'
+import type { LogOpts } from '../types'
 
 
 export function normalizeOpts(opts: LogOpts) {
@@ -32,6 +32,14 @@ export function normalizeOpts(opts: LogOpts) {
 
 export const prettyPrint = (title: string, text: string, color: string, needLog = true) => {
     if (!needLog) return
+
+    if (typeof title === 'object') {
+        title = JSON.stringify(title)
+    }
+    if (typeof text === 'object') {
+        text = JSON.stringify(text)
+    }
+
     console.log(
         `%c ${title} %c ${text} %c`,
         `background:${color};border:1px solid ${color}; padding: 1px; border-radius: 2px 0 0 2px; color: #fff;`,
