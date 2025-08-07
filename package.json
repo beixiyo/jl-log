@@ -1,45 +1,59 @@
 {
-    "name": "@jl-org/log",
-    "version": "0.0.3",
-    "description": "超级美丽的打印工具",
-    "main": "dist/index.js",
-    "module": "dist/index.js",
-    "type": "module",
-    "types": "dist/typings/index.d.ts",
-    "files": [
-        "/dist"
-    ],
-    "exports": {
-        "require": {
-            "types": "./dist/typings/index.d.ts",
-            "default": "./dist/index.cjs"
-        },
-        "import": {
-            "types": "./dist/typings/index.d.ts",
-            "default": "./dist/index.js"
-        }
+  "name": "@jl-org/log",
+  "version": "1.0.0",
+  "description": "beautiful log",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "type": "module",
+  "types": "dist/typings/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "exports": {
+    "require": {
+      "types": "./dist/typings/index.d.ts",
+      "default": "./dist/index.cjs"
     },
-    "scripts": {
-        "build": "rollup -c && tsc-alias"
-    },
-    "keywords": [
-        "log",
-        "console"
-    ],
-    "author": "cjl",
-    "license": "MIT",
-    "devDependencies": {
-        "@rollup/plugin-alias": "^5.1.0",
-        "@rollup/plugin-terser": "^0.4.4",
-        "@rollup/plugin-typescript": "^11.1.6",
-        "@types/node": "^20.12.7",
-        "rollup": "^4.16.1",
-        "rollup-plugin-clear": "^2.0.7",
-        "tsc-alias": "^1.8.8",
-        "tslib": "^2.6.2"
-    },
-    "publishConfig": {
-        "access": "public"
-    },
-    "homepage": "https://github.com/beixiyo/jl-log"
+    "import": {
+      "types": "./dist/typings/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rollup -c && tsc-alias",
+    "build:dev": "cross-env NODE_ENV=development rollup -c && tsc-alias",
+    "test": "pnpm test:node",
+    "test:node": "node test/node.js",
+    "test:browser": "start test/browser.html"
+  },
+  "keywords": [
+    "log",
+    "logger",
+    "console"
+  ],
+  "author": "CJL <2662442385@qq.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-alias": "^5.1.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/node": "^20.12.7",
+    "cross-env": "^10.0.0",
+    "rollup": "^4.16.1",
+    "rollup-plugin-clear": "^2.0.7",
+    "tsc-alias": "^1.8.8",
+    "tslib": "^2.6.2"
+  },
+  "peerDependencies": {
+    "kleur": "^4.1.5"
+  },
+  "peerDependenciesMeta": {
+    "kleur": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/beixiyo/jl-log"
 }

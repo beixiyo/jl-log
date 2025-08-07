@@ -1,3 +1,4 @@
+// @ts-check
 import { defineConfig } from 'rollup'
 import terser from '@rollup/plugin-terser'
 import typescript from '@rollup/plugin-typescript'
@@ -5,48 +6,40 @@ import alias from '@rollup/plugin-alias'
 import clear from 'rollup-plugin-clear'
 import { fileURLToPath } from 'node:url'
 
-
-const plugins = [
-    terser(),
-    typescript(),
-    clear({
-        targets: ['dist'],
-        watch: true,
-    }),
-
-    alias({
-        entries: [
-            {
-                find: '@',
-                replacement: fileURLToPath(
-                    new URL('src', import.meta.url)
-                )
-            },
-        ]
-    }),
-]
+const isDev = process.env.NODE_ENV === 'development'
 
 export default defineConfig([
-    {
-        input: './src/index.ts',
-        output: [
-            outputFormat('dist/index.cjs', 'cjs'),
-            outputFormat('dist/index.js', 'es'),
-            outputFormat('dist/index.browser.js', 'iife', '_log'),
-        ],
-        plugins,
-    }
+  {
+    input: './src/index.ts',
+    output: [
+      {
+        file: 'dist/index.cjs',
+        format: 'cjs'
+      },
+      {
+        file: 'dist/index.js',
+        format: 'esm'
+      },
+    ],
+    plugins: [
+      // 只在生产模式下启用代码压缩
+      !isDev && terser(),
+      typescript(),
+      clear({
+        targets: ['dist'],
+        watch: true,
+      }),
+
+      alias({
+        entries: [
+          {
+            find: '@',
+            replacement: fileURLToPath(
+              new URL('src', import.meta.url)
+            )
+          },
+        ]
+      }),
+    ].filter(Boolean),
+  }
 ])
-
-
-/**
- * @param {string} file 文件路径
- * @param {'amd' | 'cjs' | 'commonjs' | 'es' | 'esm' | 'iife' | 'module' | 'system' | 'systemjs' | 'umd'} format 打包格式
- * @param {string} name 全部暴露对象名称
- * @returns 格式化打包对象
- */
-function outputFormat(file, format, name) {
-    return {
-        file, format, name
-    }
-}
