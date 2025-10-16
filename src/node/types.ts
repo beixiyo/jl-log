@@ -1,5 +1,42 @@
-import type { Kleur } from 'kleur'
 import type { BaseLogOpts } from '../types'
+import type { ANSI } from './constans'
+
+/** 颜色方法类型 */
+export type ColorMethod = (text: string) => string
+
+/** 基本颜色类型 */
+export type BasicColor = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray' | 'grey'
+
+/** 背景颜色类型 */
+export type BackgroundColor = 'bgBlack' | 'bgRed' | 'bgGreen' | 'bgYellow' | 'bgBlue' | 'bgMagenta' | 'bgCyan' | 'bgWhite'
+
+/** 文本修饰类型 */
+export type TextModifier = 'bold' | 'dim' | 'italic' | 'underline' | 'inverse' | 'hidden' | 'strikethrough'
+
+/** 所有可用的 ANSI 代码类型 */
+export type AllAnsiCodes = BasicColor | BackgroundColor | TextModifier | 'reset'
+
+/** 颜色字符串类型（支持链式调用） */
+export type ColorString =
+  | BasicColor
+  | BackgroundColor
+  | TextModifier
+  | `${BasicColor}.${TextModifier}`
+  | `${BasicColor}.${BackgroundColor}`
+  | `${BackgroundColor}.${TextModifier}`
+  | `${TextModifier}.${BasicColor}`
+  | `${TextModifier}.${BackgroundColor}`
+  | `${BasicColor}.${TextModifier}.${BackgroundColor}`
+  | `${BackgroundColor}.${TextModifier}.${BasicColor}`
+  | `${TextModifier}.${BasicColor}.${BackgroundColor}`
+  | `${TextModifier}.${BackgroundColor}.${BasicColor}`
+  | (string & {}) // 允许其他字符串，但会给出警告
+
+/** ANSI 代码映射类型 */
+export type AnsiCodeMap = {
+  [K in keyof typeof ANSI]: typeof ANSI[K]
+}
+
 
 /** 进度条显示类型 */
 export type ProgressDisplayType = 'percentage' | 'fraction' | 'auto'
@@ -22,48 +59,22 @@ export interface ProgressConfig {
   sameLine?: boolean
 }
 
-/** kleur 支持的颜色方法 */
-export type KleurColor =
-  | 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray' | 'grey'
-
-/** kleur 支持的背景颜色方法 */
-export type KleurBgColor =
-  | 'bgBlack' | 'bgRed' | 'bgGreen' | 'bgYellow' | 'bgBlue' | 'bgMagenta' | 'bgCyan' | 'bgWhite'
-
-/** kleur 支持的修饰符方法 */
-export type KleurModifier =
-  | 'reset' | 'bold' | 'dim' | 'italic' | 'underline' | 'inverse' | 'hidden' | 'strikethrough'
-
-/** kleur 支持的所有颜色和修饰符方法（可以链式调用，如 'red.bold' 或 'blue.underline'） */
-export type KleurColorString =
-  | KleurColor
-  | KleurBgColor
-  | KleurModifier
-  | `${KleurColor}.${KleurModifier}`
-  | `${KleurColor}.${KleurBgColor}`
-  | `${KleurBgColor}.${KleurModifier}`
-  | `${KleurModifier}.${KleurColor}`
-  | `${KleurModifier}.${KleurBgColor}`
-  | (string & {})
-
-/** Kleur 颜色配置 */
-export interface KleurColorConfig {
-  /** 信息日志颜色，支持 kleur 的颜色方法和链式调用，如 'blue' 或 'blue.bold'，默认: 'blue' */
-  infoColor?: KleurColorString
+/** TerminalColor 颜色配置 */
+export interface TerminalColorConfig {
+  /** 信息日志颜色，支持 TerminalColor 的颜色方法和链式调用，如 'blue' 或 'blue.bold'，默认: 'blue' */
+  infoColor?: ColorString
   /** 成功日志颜色，默认: 'green' */
-  successColor?: KleurColorString
+  successColor?: ColorString
   /** 警告日志颜色，默认: 'yellow' */
-  warningColor?: KleurColorString
+  warningColor?: ColorString
   /** 错误日志颜色，默认: 'red' */
-  errorColor?: KleurColorString
+  errorColor?: ColorString
   /** 调试日志颜色，默认: 'gray' */
-  debugColor?: KleurColorString
+  debugColor?: ColorString
 }
 
 /** Node.js 日志配置 */
 export interface NodeLogOpts extends BaseLogOpts {
-  /** Kleur 实例，用户需要自己传入 */
-  kleur: Kleur
   /** 颜色配置 */
-  colors?: KleurColorConfig
+  colors?: TerminalColorConfig
 }

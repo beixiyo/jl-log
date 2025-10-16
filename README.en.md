@@ -19,8 +19,8 @@
 | Feature | Description | Status |
 |---------|-------------|--------|
 | 🌐 **Cross-Platform** | Seamless switching between Browser + Node.js environments | ✅ |
-| 🎨 **Beautiful Output** | Browser color tags + Node.js *kleur* colored terminal | ✅ |
-| 📦 **Lightweight** | Zero core dependencies, Node.js *kleur* on-demand | ✅ |
+| 🎨 **Beautiful Output** | Browser color tags + Node.js self-implemented ANSI colored terminal | ✅ |
+| 📦 **Zero Dependencies** | Completely dependency-free, self-implemented color system | ✅ |
 | 🔧 **Unified API** | Same interface for both environments, low learning curve | ✅ |
 | 🎯 **TypeScript** | Complete type definitions, great development experience | ✅ |
 | ⚡ **High Performance** | Optimized rendering algorithms, millisecond response | ✅ |
@@ -56,16 +56,12 @@ npm install @jl-org/log
 yarn add @jl-org/log
 ```
 
-### Additional Dependencies for Node.js
+### Node.js Environment Support
 
-For Node.js environment, please install *kleur*:
+Node.js environment has built-in color support, no additional dependencies required.
 
-```bash
-pnpm add kleur@^4.1.5
-```
-
-> 💡 **Why do users need to install kleur?**  
-> To keep the package lightweight and flexible, we set *kleur* as a peer dependency. This way, browser environments won't include unnecessary dependencies.
+> 💡 **Self-implemented Color System**  
+> We use a self-implemented `TerminalColor` class to handle terminal colors, supporting ANSI escape sequences without external dependencies.
 
 ## 🚀 Quick Start
 
@@ -117,12 +113,10 @@ pnpm add kleur@^4.1.5
 ### 🖥️ Node.js Environment
 
 ```js
-import kleur from 'kleur'
-import { NodeLogger } from '@jl-org/log'
+import { NodeLogger } from '@jl-org/log/node'
 
 // Create logger instance
 const logger = new NodeLogger({
-  kleur,
   debug: process.env.NODE_ENV === 'development',
   prefix: 'MyApp'
 })
@@ -141,7 +135,6 @@ logger.error('API error', null, { prefix: 'API' })
 
 // Custom color configuration
 const colorLogger = new NodeLogger({
-  kleur,
   prefix: 'App',
   colors: {
     infoColor: 'cyan.bold',        // Bold cyan
@@ -221,24 +214,21 @@ interface MethodConfig {
 
 ```typescript
 interface NodeLogOpts extends BaseLogOpts {
-  /** Kleur instance (required) */
-  kleur: Kleur
-  
   /** Color configuration */
-  colors?: KleurColorConfig
+  colors?: TerminalColorConfig
 }
 
-interface KleurColorConfig {
-  /** Info log color, supports all kleur color methods, default: 'blue' */
-  infoColor?: string
+interface TerminalColorConfig {
+  /** Info log color, supports all TerminalColor color methods and chaining, default: 'blue' */
+  infoColor?: ColorString
   /** Success log color, default: 'green' */
-  successColor?: string
+  successColor?: ColorString
   /** Warning log color, default: 'yellow' */
-  warningColor?: string
+  warningColor?: ColorString
   /** Error log color, default: 'red' */
-  errorColor?: string
+  errorColor?: ColorString
   /** Debug log color, default: 'gray' */
-  debugColor?: string
+  debugColor?: ColorString
 }
 ```
 
@@ -319,7 +309,7 @@ logger.table(complexData)
 | **Table Printing** | ✅ | ⚠️ | Full support in browser, simplified in Node.js |
 | **Image Printing** | ✅ | ❌ | Browser only, Node.js shows warning |
 | **Progress Bar** | ❌ | ✅ | Node.js exclusive feature |
-| **Colored Output** | ✅ | ✅ | CSS styles vs kleur terminal colors |
+| **Colored Output** | ✅ | ✅ | CSS styles vs self-implemented ANSI terminal colors |
 
 ## 🧪 Testing
 
@@ -328,8 +318,8 @@ We provide comprehensive test examples demonstrating all functionality:
 ### 📁 Test Files Overview
 
 - **[`test/browser.html`](./test/browser.html)** - Browser test page with beautiful UI interface
-- **[`test/browser.js`](./test/browser.js)** - Browser test script with all feature demonstrations  
-- **[`test/node.js`](./test/node.js)** - Node.js test script with complete functionality tests
+- **[`test/browserLogger.test.js`](./test/browserLogger.test.js)** - Browser test script with all feature demonstrations  
+- **[`test/nodeLogger.test.ts`](./test/nodeLogger.test.ts)** - Node.js test script with complete functionality tests
 
 ### 🌐 Browser Testing
 
@@ -354,11 +344,8 @@ Then open `http://localhost:8080/browser.html` in browser and press F12 to see c
 ### 🖥️ Node.js Testing
 
 ```bash
-# Install test dependencies
-pnpm add kleur
-
 # Build and run tests
-pnpm build && node test/node.js
+pnpm build && pnpm test:node
 ```
 
 **Test Coverage Includes:**
@@ -425,4 +412,4 @@ pnpm test
 
 Made with ❤️ by [CJL](https://github.com/beixiyo)
 
-</div> 
+</div>

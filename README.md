@@ -19,8 +19,8 @@
 | 特性 | 描述 | 状态 |
 |------|------|------|
 | 🌐 **跨平台支持** | 浏览器 + Node.js 双环境无缝切换 | ✅ |
-| 🎨 **美观输出** | 浏览器彩色标签 + Node.js *kleur* 彩色终端 | ✅ |
-| 📦 **轻量设计** | 零核心依赖，Node.js 端 *kleur* 按需引入 | ✅ |
+| 🎨 **美观输出** | 浏览器彩色标签 + Node.js 自实现 ANSI 彩色终端 | ✅ |
+| 📦 **零依赖** | 完全无外部依赖，自实现颜色系统 | ✅ |
 | 🔧 **统一 API** | 两端相同接口，学习成本低 | ✅ |
 | 🎯 **TypeScript** | 完整类型定义，开发体验佳 | ✅ |
 | ⚡ **高性能** | 优化的渲染算法，毫秒级响应 | ✅ |
@@ -56,16 +56,12 @@ npm install @jl-org/log
 yarn add @jl-org/log
 ```
 
-### Node.js 环境额外依赖
+### Node.js 环境支持
 
-如果需要在 Node.js 环境使用，请安装 *kleur*：
+Node.js 环境已内置颜色支持，无需额外安装依赖。
 
-```bash
-pnpm add kleur@^4.1.5
-```
-
-> 💡 **为什么需要用户安装 kleur？**  
-> 为了保持包的轻量性和灵活性，我们将 *kleur* 设置为 peer dependency。这样浏览器环境不会引入不必要的依赖。
+> 💡 **自实现的颜色系统**  
+> 我们使用自实现的 `TerminalColor` 类来处理终端颜色，支持 ANSI 转义序列，无需外部依赖。
 
 ## 🚀 快速开始
 
@@ -117,12 +113,10 @@ pnpm add kleur@^4.1.5
 ### 🖥️ Node.js 环境
 
 ```js
-import kleur from 'kleur'
-import { NodeLogger } from '@jl-org/log'
+import { NodeLogger } from '@jl-org/log/node'
 
 // 创建日志实例
 const logger = new NodeLogger({
-  kleur,
   debug: process.env.NODE_ENV === 'development',
   prefix: 'MyApp'
 })
@@ -141,7 +135,6 @@ logger.error('API 错误', null, { prefix: 'API' })
 
 // 自定义颜色配置
 const colorLogger = new NodeLogger({
-  kleur,
   prefix: 'App',
   colors: {
     infoColor: 'cyan.bold',        // 青色加粗
@@ -221,24 +214,21 @@ interface MethodConfig {
 
 ```typescript
 interface NodeLogOpts extends BaseLogOpts {
-  /** Kleur 实例（必需） */
-  kleur: Kleur
-  
   /** 颜色配置 */
-  colors?: KleurColorConfig
+  colors?: TerminalColorConfig
 }
 
-interface KleurColorConfig {
-  /** 信息日志颜色，支持 kleur 的所有颜色方法，默认: 'blue' */
-  infoColor?: string
+interface TerminalColorConfig {
+  /** 信息日志颜色，支持 TerminalColor 的所有颜色方法和链式调用，默认: 'blue' */
+  infoColor?: ColorString
   /** 成功日志颜色，默认: 'green' */
-  successColor?: string
+  successColor?: ColorString
   /** 警告日志颜色，默认: 'yellow' */
-  warningColor?: string
+  warningColor?: ColorString
   /** 错误日志颜色，默认: 'red' */
-  errorColor?: string
+  errorColor?: ColorString
   /** 调试日志颜色，默认: 'gray' */
-  debugColor?: string
+  debugColor?: ColorString
 }
 ```
 
@@ -319,7 +309,7 @@ logger.table(complexData)
 | **表格打印** | ✅ | ⚠️ | 浏览器完整支持，Node.js 简化版 |
 | **图片打印** | ✅ | ❌ | 仅浏览器支持，Node.js 显示警告 |
 | **进度条** | ❌ | ✅ | Node.js 独有功能 |
-| **彩色输出** | ✅ | ✅ | CSS 样式 vs kleur 终端颜色 |
+| **彩色输出** | ✅ | ✅ | CSS 样式 vs 自实现 ANSI 终端颜色 |
 
 ## 🧪 测试使用
 
@@ -328,8 +318,8 @@ logger.table(complexData)
 ### 📁 测试文件说明
 
 - **[`test/browser.html`](./test/browser.html)** - 浏览器测试页面，美观的 UI 界面
-- **[`test/browser.js`](./test/browser.js)** - 浏览器测试脚本，包含所有功能演示  
-- **[`test/node.js`](./test/node.js)** - Node.js 测试脚本，完整的功能测试
+- **[`test/browserLogger.test.js`](./test/browserLogger.test.js)** - 浏览器测试脚本，包含所有功能演示  
+- **[`test/nodeLogger.test.ts`](./test/nodeLogger.test.ts)** - Node.js 测试脚本，完整的功能测试
 
 ### 🌐 浏览器测试
 
@@ -354,11 +344,8 @@ npx live-server test/
 ### 🖥️ Node.js 测试
 
 ```bash
-# 安装测试依赖
-pnpm add kleur
-
 # 构建并运行测试
-pnpm build && node test/node.js
+pnpm build && pnpm test:node
 ```
 
 **测试内容包括：**

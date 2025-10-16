@@ -1,11 +1,10 @@
-import kleur from 'kleur'
-import { NodeLogger } from '../dist/index.js'
+import { NodeLogger } from '../src/node'
 
 // 🎨 测试不同配置的日志器
 console.log('🚀 开始 Node.js 环境测试\n')
 
 // 1️⃣ 基础日志器
-const basicLogger = new NodeLogger({ kleur })
+const basicLogger = new NodeLogger({})
 console.log('1️⃣ 基础日志测试:')
 basicLogger.info('这是一条信息日志')
 basicLogger.success('操作执行成功！')
@@ -16,7 +15,6 @@ console.log()
 
 // 2️⃣ 带前缀的日志器
 const prefixLogger = new NodeLogger({
-  kleur,
   prefix: 'MyApp'
 })
 console.log('2️⃣ 带前缀的日志测试:')
@@ -28,7 +26,6 @@ console.log()
 
 // 🆕 自定义颜色配置测试
 const colorLogger = new NodeLogger({
-  kleur,
   prefix: 'Color',
   colors: {
     infoColor: 'cyan.bold',           // 青色加粗
@@ -46,7 +43,6 @@ colorLogger.error('自定义红色加粗白背景错误')
 
 // 临时启用调试来展示自定义调试颜色
 const debugColorLogger = new NodeLogger({
-  kleur,
   debug: true,
   prefix: 'Debug',
   colors: {
@@ -58,7 +54,6 @@ console.log()
 
 // 🌈 展示更多颜色样式组合
 const rainbowLogger = new NodeLogger({
-  kleur,
   prefix: 'Rainbow',
   colors: {
     infoColor: 'white.bgBlue',
@@ -97,7 +92,6 @@ console.log()
 
 // 3️⃣ 启用调试模式的日志器
 const debugLogger = new NodeLogger({
-  kleur,
   debug: true,
   prefix: 'Debug'
 })
@@ -115,7 +109,6 @@ console.log()
 
 // 4️⃣ 禁用调试模式的日志器
 const noDebugLogger = new NodeLogger({
-  kleur,
   debug: false,
   prefix: 'Prod'
 })
@@ -127,7 +120,6 @@ console.log()
 
 // 5️⃣ 错误日志测试
 const errorLogger = new NodeLogger({
-  kleur,
   prefix: 'Error'
 })
 console.log('5️⃣ 错误日志测试:')
@@ -149,7 +141,6 @@ console.log()
 
 // 6️⃣ 进度条测试
 const progressLogger = new NodeLogger({
-  kleur,
   prefix: 'Task'
 })
 console.log('6️⃣ 进度条测试:')
@@ -171,7 +162,6 @@ async function simulateProgress(total, message) {
 }
 
 await simulateProgress(20, '处理文件')
-await simulateProgress(100, '下载数据')
 
 // 百分比显示
 for (let i = 0; i <= 1000; i += 100) {
@@ -189,7 +179,6 @@ console.log()
 
 // 7️⃣ 表格输出测试
 const tableLogger = new NodeLogger({
-  kleur,
   prefix: 'Table'
 })
 console.log('7️⃣ 简单表格测试:')
@@ -204,7 +193,6 @@ tableLogger.tableSimple({
 
 // 8️⃣ 兼容性测试（调用浏览器专用方法）
 const compatLogger = new NodeLogger({
-  kleur,
   prefix: 'Compat'
 })
 console.log('8️⃣ 兼容性测试（浏览器专用功能）:')
@@ -219,7 +207,6 @@ console.log()
 
 // 9️⃣ 批量日志测试
 const batchLogger = new NodeLogger({
-  kleur,
   prefix: 'Batch'
 })
 console.log('9️⃣ 批量日志性能测试:')
@@ -236,7 +223,6 @@ console.log()
 
 // 🔟 清除行测试
 const clearLogger = new NodeLogger({
-  kleur,
   prefix: 'Clear'
 })
 console.log('🔟 清除行测试:')
@@ -246,7 +232,7 @@ clearLogger.clearLine('✅ 消息已更新！\n')
 console.log()
 
 // 🎉 测试完成
-const finalLogger = new NodeLogger({ kleur })
+const finalLogger = new NodeLogger({})
 console.log('🎉 测试完成')
 finalLogger.success('所有 Node.js 测试已完成！')
 

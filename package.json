@@ -1,6 +1,6 @@
 {
   "name": "@jl-org/log",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "beautiful log",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -10,21 +10,33 @@
     "/dist"
   ],
   "exports": {
-    "require": {
-      "types": "./dist/typings/index.d.ts",
-      "default": "./dist/index.cjs"
+    ".": {
+      "require": {
+        "types": "./dist/typings/index.d.ts",
+        "default": "./dist/index.cjs"
+      },
+      "import": {
+        "types": "./dist/typings/index.d.ts",
+        "default": "./dist/index.js"
+      }
     },
-    "import": {
-      "types": "./dist/typings/index.d.ts",
-      "default": "./dist/index.js"
+    "./node": {
+      "require": {
+        "types": "./dist/node/typings/node/index.d.ts",
+        "default": "./dist/node/index.cjs"
+      },
+      "import": {
+        "types": "./dist/node/typings/node/index.d.ts",
+        "default": "./dist/node/index.js"
+      }
     }
   },
   "scripts": {
     "build": "rollup -c && tsc-alias",
     "build:dev": "cross-env NODE_ENV=development rollup -c && tsc-alias",
     "test": "pnpm test:node",
-    "test:node": "node test/node.js",
-    "test:browser": "start test/browser.html"
+    "test:node": "tsx ./test/nodeLogger.test.ts",
+    "test:browser": "start ./test/browser.html"
   },
   "keywords": [
     "log",
@@ -43,14 +55,6 @@
     "rollup-plugin-clear": "^2.0.7",
     "tsc-alias": "^1.8.8",
     "tslib": "^2.6.2"
-  },
-  "peerDependencies": {
-    "kleur": "^4.1.5"
-  },
-  "peerDependenciesMeta": {
-    "kleur": {
-      "optional": true
-    }
   },
   "publishConfig": {
     "access": "public"

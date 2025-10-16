@@ -1,15 +1,14 @@
 import type { ILogger, MethodConfig } from '@/types'
 import { BaseLogger } from '../base/BaseLogger'
-import type { ProgressConfig, NodeLogOpts, KleurColorConfig } from './types'
-import { Kleur } from 'kleur'
+import type { ProgressConfig, NodeLogOpts, TerminalColorConfig } from './types'
+import { terminalColor } from './TerminalColor'
 
 /**
  * Node.js 环境的日志管理类
  * 提供彩色打印和不同日志级别的功能
  */
 export class NodeLogger extends BaseLogger implements ILogger {
-  private kleur: Kleur
-  private colors: Required<KleurColorConfig>
+  private colors: Required<TerminalColorConfig>
 
   /**
    * 构造函数
@@ -17,7 +16,6 @@ export class NodeLogger extends BaseLogger implements ILogger {
    */
   constructor(opts: NodeLogOpts) {
     super(opts)
-    this.kleur = opts.kleur
 
     // 设置默认颜色配置
     this.colors = {
@@ -30,49 +28,15 @@ export class NodeLogger extends BaseLogger implements ILogger {
   }
 
   /**
-   * 获取指定颜色的 kleur 方法
+   * 获取指定颜色的 TerminalColor 方法
    */
   private getColorMethod(colorName: string): ((text: string) => string) {
     try {
-      // 简单映射常用颜色
-      const simpleColors: Record<string, (text: string) => string> = {
-        'black': this.kleur.black,
-        'red': this.kleur.red,
-        'green': this.kleur.green,
-        'yellow': this.kleur.yellow,
-        'blue': this.kleur.blue,
-        'magenta': this.kleur.magenta,
-        'cyan': this.kleur.cyan,
-        'white': this.kleur.white,
-        'gray': this.kleur.gray,
-        'grey': this.kleur.grey
-      }
-
-      // 如果是简单颜色，直接返回
-      if (simpleColors[colorName]) {
-        return simpleColors[colorName]
-      }
-
-      // 处理链式调用，如 'red.bold' 或 'blue.underline'
-      const methods = colorName.split('.')
-      let result = this.kleur as any
-
-      for (const method of methods) {
-        if (result && typeof result[method] === 'function') {
-          result = result[method]()
-        } else if (result && result[method]) {
-          result = result[method]
-        } else {
-          console.warn(`Warning: kleur method '${method}' not found, using default color`)
-          return this.kleur.white
-        }
-      }
-
-      // 确保返回一个函数
-      return typeof result === 'function' ? result : this.kleur.white
+      // 使用 TerminalColor 的 parseColor 方法处理颜色字符串
+      return terminalColor.parseColor(colorName)
     } catch (error) {
-      console.warn(`Error processing kleur color '${colorName}':`, error)
-      return this.kleur.white
+      console.warn(`Error processing color '${colorName}':`, error)
+      return terminalColor.white
     }
   }
 
@@ -119,7 +83,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const colorMethod = this.getColorMethod(this.colors.errorColor)
     console.error(colorMethod(`${finalPrefix}${message}`))
     if (error) {
-      console.error(this.kleur.red(error instanceof Error ? error.stack || error.message : error))
+      console.error(terminalColor.red(error instanceof Error ? error.stack || error.message : error))
     }
   }
 
@@ -203,7 +167,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const completed = Math.floor(width * percent / 100)
     const remaining = width - completed
 
-    return this.kleur.green('█'.repeat(completed)) + this.kleur.gray('░'.repeat(remaining))
+    return terminalColor.green('█'.repeat(completed)) + terminalColor.gray('░'.repeat(remaining))
   }
 
   /**
@@ -231,7 +195,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
   log(message: string) {
     if (!this.shouldLog()) return
 
-    console.log(this.kleur.cyan(`${this.prefix}${message}`))
+    console.log(terminalColor.cyan(`${this.prefix}${message}`))
   }
 
   /**
@@ -256,7 +220,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     this.newLine()
     Object.entries(data).forEach(([key, value]) => {
       const paddedKey = key.padEnd(maxKeyLength)
-      console.log(`${this.kleur.dim(this.prefix)}${this.kleur.bold().cyan(paddedKey)} ${this.kleur.dim('│')} ${value}`)
+      console.log(`${terminalColor.dim(this.prefix)}${terminalColor.bold(terminalColor.cyan(paddedKey))} ${terminalColor.dim('│')} ${value}`)
     })
     this.newLine()
   }
