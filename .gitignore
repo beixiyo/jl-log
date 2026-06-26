@@ -11,6 +11,10 @@ lerna-debug.log*
 docs/type-doc
 docs/.vitepress/cache
 
+# test coverage
+coverage
+*.tsbuildinfo
+
 node_modules
 dist
 dist-ssr

@@ -34,8 +34,9 @@
   "scripts": {
     "build": "rollup -c && tsc-alias",
     "build:dev": "cross-env NODE_ENV=development rollup -c && tsc-alias",
-    "test": "pnpm test:node",
-    "test:node": "tsx ./test/nodeLogger.test.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
     "test:browser": "start ./test/browser.html"
   },
   "keywords": [
@@ -49,12 +50,15 @@
     "@rollup/plugin-alias": "^5.1.0",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^11.1.6",
-    "@types/node": "^20.12.7",
+    "@types/node": "^22.20.0",
+    "@vitest/coverage-v8": "^4.1.9",
     "cross-env": "^10.0.0",
+    "jsdom": "^29.1.1",
     "rollup": "^4.16.1",
     "rollup-plugin-clear": "^2.0.7",
     "tsc-alias": "^1.8.8",
-    "tslib": "^2.6.2"
+    "tslib": "^2.6.2",
+    "vitest": "^4.1.9"
   },
   "publishConfig": {
     "access": "public"

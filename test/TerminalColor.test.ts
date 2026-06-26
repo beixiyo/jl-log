@@ -1,132 +1,231 @@
 /**
- * 颜色工具测试文件
- * 展示各种颜色、修饰符和链式调用的效果
+ * TerminalColor 单例的单元测试
+ *
+ * 覆盖：
+ * - enable() / disable() / isEnabled()
+ * - 启用时颜色方法将文本包裹为 `<code>text<reset>`
+ * - 禁用时颜色方法原样返回文本
+ * - parseColor 多段组合、未知 token 警告并跳过
+ * - 基本颜色 / 背景色 / 修饰符的前缀映射
+ * - reset()
  */
 
-import { terminalColor } from '../src/node'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ANSI, terminalColor } from '@/node'
+import type { BasicColor } from '@/node'
 
+/** 记录初始启用状态，测试结束后恢复，避免污染并发用例 */
+const initialEnabled = terminalColor.isEnabled()
 
-console.log('🎨 颜色工具测试开始\n')
-
-// 1. 基本颜色测试
-console.log('📌 基本颜色测试:')
-console.log(terminalColor.red('红色文本'))
-console.log(terminalColor.green('绿色文本'))
-console.log(terminalColor.blue('蓝色文本'))
-console.log(terminalColor.yellow('黄色文本'))
-console.log(terminalColor.magenta('洋红色文本'))
-console.log(terminalColor.cyan('青色文本'))
-console.log(terminalColor.gray('灰色文本'))
-console.log('')
-
-// 2. 背景颜色测试
-console.log('📌 背景颜色测试:')
-console.log(terminalColor.bgRed('红色背景'))
-console.log(terminalColor.bgGreen('绿色背景'))
-console.log(terminalColor.bgBlue('蓝色背景'))
-console.log(terminalColor.bgYellow('黄色背景'))
-console.log('')
-
-// 3. 文本修饰测试
-console.log('📌 文本修饰测试:')
-console.log(terminalColor.bold('粗体文本'))
-console.log(terminalColor.italic('斜体文本'))
-console.log(terminalColor.underline('下划线文本'))
-console.log(terminalColor.strikethrough('删除线文本'))
-console.log(terminalColor.dim('暗淡文本'))
-console.log(terminalColor.inverse('反色文本'))
-console.log('')
-
-// 4. 链式调用测试（使用 parseColor 方法）
-console.log('📌 链式调用测试:')
-console.log(terminalColor.parseColor('red.bold')('红色粗体'))
-console.log(terminalColor.parseColor('blue.underline')('蓝色下划线'))
-console.log(terminalColor.parseColor('green.italic')('绿色斜体'))
-console.log(terminalColor.parseColor('yellow.bold.underline')('黄色粗体下划线'))
-console.log(terminalColor.parseColor('magenta.strikethrough')('洋红色删除线'))
-console.log('')
-
-// 5. 复杂组合测试
-console.log('📌 复杂组合测试:')
-console.log(terminalColor.parseColor('bgBlue.white.bold')('蓝色背景白色粗体'))
-console.log(terminalColor.parseColor('bgRed.yellow.bold.underline')('红色背景黄色粗体下划线'))
-console.log(terminalColor.parseColor('bgGreen.black.italic')('绿色背景黑色斜体'))
-console.log('')
-
-// 6. 实际应用场景测试
-console.log('📌 实际应用场景测试:')
-console.log('✅ ' + terminalColor.parseColor('green.bold')('成功: 操作完成'))
-console.log('❌ ' + terminalColor.parseColor('red.bold')('错误: 操作失败'))
-console.log('⚠️  ' + terminalColor.parseColor('yellow.bold')('警告: 请注意'))
-console.log('ℹ️  ' + terminalColor.parseColor('blue.bold')('信息: 提示内容'))
-console.log('🐛 ' + terminalColor.gray('调试: 调试信息'))
-console.log('')
-
-// 7. 进度条模拟测试
-console.log('📌 进度条模拟测试:')
-const progressBar = (percent: number) => {
-  const width = 20
-  const completed = Math.floor(width * percent / 100)
-  const remaining = width - completed
-  const bar = terminalColor.green('█'.repeat(completed)) + terminalColor.gray('░'.repeat(remaining))
-  return `[${bar}] ${percent}%`
-}
-
-console.log('下载进度: ' + progressBar(0))
-console.log('下载进度: ' + progressBar(25))
-console.log('下载进度: ' + progressBar(50))
-console.log('下载进度: ' + progressBar(75))
-console.log('下载进度: ' + progressBar(100))
-console.log('')
-
-// 8. 表格样式测试
-console.log('📌 表格样式测试:')
-const tableData = [
-  { name: '项目名称', value: 'jl-log' },
-  { name: '版本号', value: '1.0.0' },
-  { name: '作者', value: 'CJL' },
-  { name: '许可证', value: 'MIT' }
-]
-
-const maxKeyLength = Math.max(...tableData.map(item => item.name.length))
-tableData.forEach(({ name, value }) => {
-  const paddedKey = name.padEnd(maxKeyLength)
-  console.log(`${terminalColor.dim('│')} ${terminalColor.parseColor('bold.cyan')(paddedKey)} ${terminalColor.dim('│')} ${value}`)
+afterEach(() => {
+  vi.restoreAllMocks()
+  // 恢复单例初始状态
+  if (initialEnabled) {
+    terminalColor.enable()
+  }
+  else {
+    terminalColor.disable()
+  }
 })
-console.log('')
 
-// 9. 颜色支持检测测试
-console.log('📌 颜色支持检测测试:')
-console.log(`颜色支持状态: ${terminalColor.isEnabled() ? terminalColor.green('已启用') : terminalColor.red('已禁用')}`)
-console.log(`终端类型: ${process.env.TERM || '未知'}`)
-console.log(`是否为 TTY: ${process.stdout.isTTY ? terminalColor.green('是') : terminalColor.red('否')}`)
-console.log('')
+describe('TerminalColor: enable / disable / isEnabled', () => {
+  it('enable() 使 isEnabled() 返回 true', () => {
+    terminalColor.disable()
+    expect(terminalColor.isEnabled()).toBe(false)
 
-// 10. 禁用/启用颜色测试
-console.log('📌 禁用/启用颜色测试:')
-console.log('正常颜色: ' + terminalColor.red('红色文本'))
-terminalColor.disable()
-console.log('禁用颜色: ' + terminalColor.red('红色文本'))
-terminalColor.enable()
-console.log('重新启用: ' + terminalColor.red('红色文本'))
-console.log('')
+    terminalColor.enable()
+    expect(terminalColor.isEnabled()).toBe(true)
+  })
 
-// 11. 自定义颜色字符串解析测试
-console.log('📌 自定义颜色字符串解析测试:')
-const colorStrings = [
-  'red',
-  'blue.bold',
-  'green.underline',
-  'yellow.bold.underline',
-  'magenta.strikethrough',
-  'bgRed.white.bold',
-  'bgBlue.yellow.italic',
-  'cyan.dim'
-]
+  it('disable() 使 isEnabled() 返回 false', () => {
+    terminalColor.enable()
+    expect(terminalColor.isEnabled()).toBe(true)
 
-colorStrings.forEach(colorStr => {
-  console.log(`${colorStr}: ` + terminalColor.parseColor(colorStr)(`测试文本 - ${colorStr}`))
+    terminalColor.disable()
+    expect(terminalColor.isEnabled()).toBe(false)
+  })
+
+  it('多次切换状态保持幂等', () => {
+    terminalColor.enable()
+    terminalColor.enable()
+    expect(terminalColor.isEnabled()).toBe(true)
+
+    terminalColor.disable()
+    terminalColor.disable()
+    expect(terminalColor.isEnabled()).toBe(false)
+  })
 })
-console.log('')
 
-console.log('🎨 颜色工具测试完成!')
+describe('TerminalColor: 启用时包裹 ANSI 代码', () => {
+  beforeEach(() => {
+    terminalColor.enable()
+  })
+
+  it('red() 以 ANSI.red 开头并以 ANSI.reset 结尾', () => {
+    const out = terminalColor.red('hello')
+
+    expect(out.startsWith(ANSI.red)).toBe(true)
+    expect(out.endsWith(ANSI.reset)).toBe(true)
+    expect(out).toContain('hello')
+    expect(out).toBe(`${ANSI.red}hello${ANSI.reset}`)
+  })
+
+  it('基本颜色方法生成正确前缀', () => {
+    const basics: [BasicColor, string][] = [
+      ['black', ANSI.black],
+      ['red', ANSI.red],
+      ['green', ANSI.green],
+      ['yellow', ANSI.yellow],
+      ['blue', ANSI.blue],
+      ['magenta', ANSI.magenta],
+      ['cyan', ANSI.cyan],
+      ['white', ANSI.white],
+      ['gray', ANSI.gray],
+      ['grey', ANSI.grey],
+    ]
+
+    for (const [name, code] of basics) {
+      const out = terminalColor[name]('文本')
+      expect(out, `方法 ${name}`).toBe(`${code}文本${ANSI.reset}`)
+    }
+  })
+
+  it('背景色方法生成正确前缀', () => {
+    const bgs: [keyof typeof terminalColor, string][] = [
+      ['bgBlack', ANSI.bgBlack],
+      ['bgRed', ANSI.bgRed],
+      ['bgGreen', ANSI.bgGreen],
+      ['bgYellow', ANSI.bgYellow],
+      ['bgBlue', ANSI.bgBlue],
+      ['bgMagenta', ANSI.bgMagenta],
+      ['bgCyan', ANSI.bgCyan],
+      ['bgWhite', ANSI.bgWhite],
+    ]
+
+    for (const [name, code] of bgs) {
+      const fn = terminalColor[name] as (t: string) => string
+      const out = fn('bg')
+      expect(out, `方法 ${String(name)}`).toBe(`${code}bg${ANSI.reset}`)
+    }
+  })
+
+  it('修饰符方法生成正确前缀', () => {
+    const mods: [keyof typeof terminalColor, string][] = [
+      ['bold', ANSI.bold],
+      ['dim', ANSI.dim],
+      ['italic', ANSI.italic],
+      ['underline', ANSI.underline],
+      ['inverse', ANSI.inverse],
+      ['hidden', ANSI.hidden],
+      ['strikethrough', ANSI.strikethrough],
+    ]
+
+    for (const [name, code] of mods) {
+      const fn = terminalColor[name] as (t: string) => string
+      const out = fn('mod')
+      expect(out, `方法 ${String(name)}`).toBe(`${code}mod${ANSI.reset}`)
+    }
+  })
+
+  it('gray 与 grey 输出一致（同一 ANSI 码）', () => {
+    expect(terminalColor.gray('x')).toBe(terminalColor.grey('x'))
+  })
+
+  it('空字符串也被正确包裹', () => {
+    expect(terminalColor.red('')).toBe(`${ANSI.red}${ANSI.reset}`)
+  })
+})
+
+describe('TerminalColor: 禁用时原样返回', () => {
+  beforeEach(() => {
+    terminalColor.disable()
+  })
+
+  it('red() 禁用时不含任何 ANSI 码', () => {
+    const out = terminalColor.red('hello')
+
+    expect(out).toBe('hello')
+    expect(out).not.toContain(ANSI.red)
+    expect(out).not.toContain(ANSI.reset)
+  })
+
+  it('所有方法禁用时均原样返回', () => {
+    expect(terminalColor.green('a')).toBe('a')
+    expect(terminalColor.bgRed('b')).toBe('b')
+    expect(terminalColor.bold('c')).toBe('c')
+    expect(terminalColor.underline('d')).toBe('d')
+  })
+
+  it('parseColor 在禁用时也原样返回', () => {
+    expect(terminalColor.parseColor('red.bold')('text')).toBe('text')
+  })
+
+  it('reset() 在禁用时原样返回', () => {
+    expect(terminalColor.reset('text')).toBe('text')
+  })
+})
+
+describe('TerminalColor: parseColor', () => {
+  beforeEach(() => {
+    terminalColor.enable()
+  })
+
+  it('parseColor("red.bold") 按顺序组合多个 ANSI 码', () => {
+    const out = terminalColor.parseColor('red.bold')('text')
+
+    // 顺序：red 在前，bold 在后
+    expect(out).toBe(`${ANSI.red}${ANSI.bold}text${ANSI.reset}`)
+    expect(out.startsWith(ANSI.red)).toBe(true)
+    expect(out.indexOf(ANSI.red)).toBeLessThan(out.indexOf(ANSI.bold))
+    expect(out.endsWith(ANSI.reset)).toBe(true)
+  })
+
+  it('parseColor 单段等价于直接颜色方法', () => {
+    expect(terminalColor.parseColor('blue')('x')).toBe(terminalColor.blue('x'))
+  })
+
+  it('parseColor 三段组合保持声明顺序', () => {
+    const out = terminalColor.parseColor('bgBlue.white.bold')('x')
+    expect(out).toBe(`${ANSI.bgBlue}${ANSI.white}${ANSI.bold}x${ANSI.reset}`)
+  })
+
+  it('parseColor 遇到未知 token 时调用 console.warn 并跳过', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const out = terminalColor.parseColor('red.nope' as any)('text')
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('nope')
+    // 未知 token 被跳过，仅保留 red
+    expect(out).toBe(`${ANSI.red}text${ANSI.reset}`)
+  })
+
+  it('parseColor 全部为未知 token 时不含任何 ANSI 颜色码', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const out = terminalColor.parseColor('foo.bar' as any)('text')
+
+    expect(warnSpy).toHaveBeenCalledTimes(2)
+    // codes 为空，applyAnsi 用空前缀包裹，仍追加 reset
+    expect(out).toBe(`text${ANSI.reset}`)
+  })
+
+  it('parseColor 已知 token 不触发警告', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    terminalColor.parseColor('green.underline')('x')
+
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('TerminalColor: reset()', () => {
+  it('启用时 reset() 包裹 ANSI.reset 前后缀', () => {
+    terminalColor.enable()
+    const out = terminalColor.reset('text')
+
+    expect(out).toBe(`${ANSI.reset}text${ANSI.reset}`)
+    expect(out.startsWith(ANSI.reset)).toBe(true)
+    expect(out.endsWith(ANSI.reset)).toBe(true)
+  })
+})
