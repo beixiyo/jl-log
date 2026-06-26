@@ -4,7 +4,7 @@
 
 **一个超级美丽的跨平台日志工具** ✨
 
-*同时支持浏览器和 Node.js 环境的彩色日志输出*
+*同时支持浏览器和 Node.js 环境的彩色日志输出 · 零依赖 · 完整 TypeScript 类型*
 
 [![NPM Version](https://img.shields.io/npm/v/@jl-org/log.svg)](https://www.npmjs.com/package/@jl-org/log)
 [![License](https://img.shields.io/npm/l/@jl-org/log.svg)](https://github.com/beixiyo/jl-log/blob/main/LICENSE)
@@ -19,11 +19,11 @@
 | 特性 | 描述 | 状态 |
 |------|------|------|
 | 🌐 **跨平台支持** | 浏览器 + Node.js 双环境无缝切换 | ✅ |
-| 🎨 **美观输出** | 浏览器彩色标签 + Node.js 自实现 ANSI 彩色终端 | ✅ |
-| 📦 **零依赖** | 完全无外部依赖，自实现颜色系统 | ✅ |
-| 🔧 **统一 API** | 两端相同接口，学习成本低 | ✅ |
-| 🎯 **TypeScript** | 完整类型定义，开发体验佳 | ✅ |
-| ⚡ **高性能** | 优化的渲染算法，毫秒级响应 | ✅ |
+| 🎨 **美观输出** | 浏览器 CSS 彩色标签 + Node.js 自实现 ANSI 彩色终端 | ✅ |
+| 📦 **零依赖** | 完全无外部依赖，`2.0.0` 起移除 `kleur`，自实现颜色系统 | ✅ |
+| 🔧 **统一 API** | 两端共享一致接口，学习成本低 | ✅ |
+| 🎯 **TypeScript** | 完整类型定义，颜色字符串都有类型提示 | ✅ |
+| ⚡ **高性能** | 轻量实现，按需打印，可被构建工具 tree-shake | ✅ |
 
 ## 📸 效果预览
 
@@ -33,7 +33,7 @@
 
 *浏览器控制台中的彩色标签效果展示*
 
-### 🖥️ Node.js 终端效果  
+### 🖥️ Node.js 终端效果
 
 ![node-logger](./docAssets/node.webp)
 
@@ -42,8 +42,6 @@
 ---
 
 ## 📦 快速安装
-
-### 基础安装
 
 ```bash
 # 使用 pnpm（推荐）
@@ -56,338 +54,301 @@ npm install @jl-org/log
 yarn add @jl-org/log
 ```
 
-### Node.js 环境支持
-
-Node.js 环境已内置颜色支持，无需额外安装依赖。
-
-> 💡 **自实现的颜色系统**  
-> 我们使用自实现的 `TerminalColor` 类来处理终端颜色，支持 ANSI 转义序列，无需外部依赖。
+> 💡 **Node.js 无需额外依赖**
+> 自 `2.0.0` 起，终端颜色由内置的 `TerminalColor` 类（自实现的 ANSI 转义序列）提供，不再依赖 `kleur` 等第三方库，开箱即用
 
 ## 🚀 快速开始
 
 ### 🌐 浏览器环境
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Logger Demo</title>
-</head>
-<body>
-  <script type="module">
-    import { BrowserLogger } from '@jl-org/log'
+浏览器端从包入口导入 `BrowserLogger`：
 
-    // 创建日志实例
-    const logger = new BrowserLogger({
-      needLog: () => process.env.NODE_ENV !== 'production',
-      prefix: 'MyApp',
-      debug: true
-    })
+```ts
+import { BrowserLogger } from '@jl-org/log'
 
-    // 基础使用
-    logger.info('🚀 应用启动成功')
-    logger.success('✅ 数据加载完成')
-    logger.warn('⚠️ 内存使用率偏高')
-    logger.error('❌ 网络连接失败')
-    logger.debug('🐛 调试信息')
+// 创建日志实例
+const logger = new BrowserLogger({
+  // needLog 让你能用构建标记控制是否打印，便于打包工具在生产环境 tree-shake 掉日志
+  // 注意：浏览器中没有 process，请使用构建期标记（如 Vite 的 import.meta.env.DEV）
+  needLog: () => import.meta.env?.DEV ?? true,
+  prefix: 'MyApp',
+  debug: true,
+})
 
-    // 方法级配置覆盖
-    logger.info('临时前缀测试', { prefix: 'TEMP' })
-    logger.debug('临时启用调试', { debug: true })
-    logger.error('API 错误', null, { prefix: 'API' })
+// 基础日志
+logger.info('🚀 应用启动成功')
+logger.success('✅ 数据加载完成')
+logger.warn('⚠️ 内存使用率偏高')
+logger.error('❌ 网络连接失败')
+logger.debug('🐛 调试信息') // 仅在 debug 开启时输出
 
-    // 表格展示
-    const users = [
-      { id: 1, name: '张三', role: '管理员' },
-      { id: 2, name: '李四', role: '用户' }
-    ]
-    logger.table(users)
+// 错误对象会被一并打印（含堆栈）
+logger.error('请求异常', new Error('500 Internal Server Error'))
 
-    // 图片展示（浏览器独有）
-    logger.img('https://example.com/logo.png', 0.5)
-  </script>
-</body>
-</html>
+// 方法级配置覆盖：临时替换前缀 / 调试开关
+logger.info('临时前缀', { prefix: 'TEMP' })
+logger.debug('临时启用调试', { debug: true })
+logger.error('API 错误', null, { prefix: 'API' })
+
+// 表格展示（浏览器完整支持）
+const users = [
+  { id: 1, name: '张三', role: '管理员' },
+  { id: 2, name: '李四', role: '用户' },
+]
+logger.table(users)
+
+// 图片展示（浏览器独有）
+logger.img('https://example.com/logo.png', 0.5)
 ```
 
 ### 🖥️ Node.js 环境
 
-```js
+Node.js 端从 `@jl-org/log/node` 子路径导入 `NodeLogger`：
+
+```ts
 import { NodeLogger } from '@jl-org/log/node'
 
 // 创建日志实例
 const logger = new NodeLogger({
+  prefix: 'MyApp',
   debug: process.env.NODE_ENV === 'development',
-  prefix: 'MyApp'
 })
 
-// 基础使用
+// 基础日志
 logger.info('🚀 服务器启动成功')
 logger.success('✅ 数据库连接正常')
 logger.warn('⚠️ 内存使用率较高')
 logger.error('❌ Redis 连接失败')
 logger.debug('🐛 调试信息：用户 ID = 12345')
 
+// 错误对象会输出红色堆栈
+logger.error('任务失败', new Error('boom'))
+
 // 方法级配置覆盖
-logger.info('临时前缀测试', { prefix: 'TEMP' })
+logger.info('临时前缀', { prefix: 'TEMP' })
 logger.debug('临时启用调试', { debug: true })
 logger.error('API 错误', null, { prefix: 'API' })
 
-// 自定义颜色配置
+// 自定义颜色配置（支持链式调用，详见「颜色字符串参考」）
 const colorLogger = new NodeLogger({
   prefix: 'App',
   colors: {
-    infoColor: 'cyan.bold',        // 青色加粗
+    infoColor: 'cyan.bold', // 青色加粗
     successColor: 'green.underline', // 绿色下划线
-    warningColor: 'magenta',       // 洋红色
-    errorColor: 'red.bold.bgWhite' // 红色加粗白背景
-  }
+    warningColor: 'magenta', // 洋红色
+    errorColor: 'red.bold.bgWhite', // 红色加粗白底
+    debugColor: 'gray', // 灰色
+  },
 })
-
 colorLogger.info('自定义样式的信息日志')
 colorLogger.success('自定义样式的成功日志')
 
-// 进度条（Node.js 独有）
+// 进度条（Node.js 独有），sameLine 默认 true，会在同一行刷新直到完成
 for (let i = 0; i <= 100; i += 10) {
   logger.progress({
     message: '处理数据',
     current: i,
     total: 100,
-    displayType: 'percentage'
+    displayType: 'percentage', // 'percentage' | 'fraction' | 'auto'
   })
   await new Promise(resolve => setTimeout(resolve, 100))
 }
 
-// 简单表格
+// 简单键值对表格（Node.js 专用）
 logger.tableSimple({
-  '应用': 'MyApp',
-  '版本': 'v1.0.0',
-  '环境': 'production',
-  '端口': '3000'
+  应用: 'MyApp',
+  版本: 'v2.0.0',
+  环境: 'production',
+  端口: '3000',
 })
+
+// 行内工具
+logger.clearLine('正在重试...') // 清除当前行并写入新内容
+logger.newLine() // 打印一个空行
+logger.log('普通文本（青色输出）') // 不带级别标签的纯文本
 ```
 
-## 📖 详细文档
+## 📖 API / 配置参考
 
-### 🎨 BrowserLogger 配置
+### 🌐 BrowserLogger 配置 `LogOpts`
 
-```typescript
-interface LogOpts {
-  /** 是否启用日志，支持动态控制 */
-  needLog?: () => boolean
-  
+```ts
+/** 基础日志配置（两端共享） */
+interface BaseLogOpts {
   /** 是否启用调试模式 */
   debug?: boolean
-  
-  /** 日志前缀 */
+  /** 日志前缀，输出为 `[prefix] ` */
   prefix?: string
-  
-  /** 自定义颜色配置 */
-  infoColor?: string     // 默认: #909399
-  errorColor?: string    // 默认: #F56C6C  
-  warningColor?: string  // 默认: #E6A23C
-  successColor?: string  // 默认: #67C23A
-  
-  /** 表格样式配置 */
+  /** 是否需要打印，可根据环境返回布尔值；建议配合构建工具删除生产日志 */
+  needLog?: () => boolean
+}
+
+/** 浏览器环境日志配置 */
+interface LogOpts extends BaseLogOpts {
+  /** 信息色，默认 #909399 */
+  infoColor?: string
+  /** 错误色，默认 #F56C6C */
+  errorColor?: string
+  /** 警告色，默认 #E6A23C */
+  warningColor?: string
+  /** 成功色，默认 #67C23A */
+  successColor?: string
+  /** 表格样式 */
   table?: {
+    /** 表头 */
     header?: {
-      color?: string     // 默认: #F2F7FF
-      bgc?: string       // 默认: #1455CC
+      /** 文字颜色，默认 #F2F7FF */
+      color?: string
+      /** 背景颜色，默认 #1455CC */
+      bgc?: string
     }
+    /** 数据行 */
     row?: {
-      color?: string     // 默认: #FFF
-      bgc?: string       // 默认: #656C66
+      /** 文字颜色，默认 #FFF */
+      color?: string
+      /** 背景颜色，默认 #656C66 */
+      bgc?: string
     }
   }
 }
+```
 
-/** 方法级配置选项 - 允许临时覆盖构造器配置 */
+> ⚠️ `BrowserLogger` 的 `debug` 输出使用固定的 `#909399` 颜色，不随 `infoColor` 等配置变化
+
+### 🖥️ NodeLogger 配置 `NodeLogOpts` / `TerminalColorConfig`
+
+```ts
+/** Node.js 日志配置 */
+interface NodeLogOpts extends BaseLogOpts {
+  /** 颜色配置 */
+  colors?: TerminalColorConfig
+}
+
+/** 终端颜色配置，值为颜色字符串，支持链式调用 */
+interface TerminalColorConfig {
+  /** 信息日志颜色，默认 'blue' */
+  infoColor?: ColorString
+  /** 成功日志颜色，默认 'green' */
+  successColor?: ColorString
+  /** 警告日志颜色，默认 'yellow' */
+  warningColor?: ColorString
+  /** 错误日志颜色，默认 'red' */
+  errorColor?: ColorString
+  /** 调试日志颜色，默认 'gray' */
+  debugColor?: ColorString
+}
+
+/** 进度条配置 */
+interface ProgressConfig {
+  /** 进度消息 */
+  message: string
+  /** 当前进度 */
+  current: number
+  /** 总进度 */
+  total: number
+  /** 行内前缀，输出为 `[prefix] ` */
+  prefix?: string
+  /** 显示类型：百分比 / 分数 / 自动，默认 'auto' */
+  displayType?: 'percentage' | 'fraction' | 'auto'
+  /** 自定义进度文本，优先级高于 displayType */
+  customText?: string
+  /** 是否在同一行刷新，默认 true */
+  sameLine?: boolean
+}
+```
+
+### ⚙️ 方法级配置 `MethodConfig`
+
+```ts
+/** 方法级配置 - 临时覆盖构造器配置 */
 interface MethodConfig {
-  /** 临时覆盖前缀 */
+  /** 临时覆盖前缀（传空字符串可清除前缀） */
   prefix?: string
   /** 临时覆盖调试模式 */
   debug?: boolean
 }
 ```
 
-### 🖥️ NodeLogger 配置
+### 🔧 统一接口 `ILogger`
 
-```typescript
-interface NodeLogOpts extends BaseLogOpts {
-  /** 颜色配置 */
-  colors?: TerminalColorConfig
-}
-
-interface TerminalColorConfig {
-  /** 信息日志颜色，支持 TerminalColor 的所有颜色方法和链式调用，默认: 'blue' */
-  infoColor?: ColorString
-  /** 成功日志颜色，默认: 'green' */
-  successColor?: ColorString
-  /** 警告日志颜色，默认: 'yellow' */
-  warningColor?: ColorString
-  /** 错误日志颜色，默认: 'red' */
-  errorColor?: ColorString
-  /** 调试日志颜色，默认: 'gray' */
-  debugColor?: ColorString
-}
-```
-
-### 🔧 通用接口
-
-```typescript
+```ts
+/** 两端都实现的基础接口 */
 interface ILogger {
   info(message: string, config?: MethodConfig): void
-  success(message: string, config?: MethodConfig): void  
+  success(message: string, config?: MethodConfig): void
   warn(message: string, config?: MethodConfig): void
   error(message: string, error?: any, config?: MethodConfig): void
+  /** 调试日志（仅 debug 开启时输出） */
   debug?(message: string, config?: MethodConfig): void
+  /** 打印图片（仅浏览器环境支持） */
   img?(url: string, scale?: number): void
+  /** 打印表格数据 */
   table?<T extends object>(data: T[]): void
 }
 ```
 
-## ⚡ 高级用法
+> `NodeLogger` 在 `ILogger` 之外还额外提供 `progress()`、`tableSimple()`、`clearLine()`、`newLine()`、`log()` 等终端专用方法
 
-### 🎨 自定义主题
-
-```js
-// 暗黑主题
-const darkLogger = new BrowserLogger({
-  infoColor: '#64B5F6',
-  successColor: '#81C784', 
-  warningColor: '#FFB74D',
-  errorColor: '#E57373'
-})
-
-// 彩虹主题  
-const rainbowLogger = new BrowserLogger({
-  infoColor: '#9C27B0',
-  successColor: '#4CAF50',
-  warningColor: '#FF9800', 
-  errorColor: '#F44336'
-})
-```
-
-### 🚀 性能优化
-
-```js
-// 生产环境关闭日志
-const logger = new BrowserLogger({
-  needLog: () => process.env.NODE_ENV !== 'production'
-})
-
-// 条件日志
-const logger = new BrowserLogger({
-  needLog: () => window.location.search.includes('debug=true')
-})
-```
-
-### 📊 数据可视化
-
-```js
-// 复杂数据表格
-const complexData = [
-  { 
-    id: 1,
-    user: { name: '张三', email: 'zhang@example.com' },
-    stats: { views: 1234, likes: 89 },
-    active: true 
-  }
-]
-logger.table(complexData)
-```
-
-## 🔍 功能对比表
+## 🔍 浏览器 vs Node.js 功能对比
 
 | 功能 | 🌐 浏览器 | 🖥️ Node.js | 📝 说明 |
 |------|----------|-----------|--------|
-| **基础日志** | ✅ | ✅ | info, success, warn, error |
-| **调试日志** | ✅ | ✅ | debug 方法，可控制显示 |
-| **前缀支持** | ✅ | ✅ | 两端统一支持自定义前缀 🆕 |
-| **方法级配置** | ✅ | ✅ | 支持临时覆盖前缀、调试等 🆕 |
-| **错误堆栈** | ✅ | ✅ | 支持 Error 对象展示 |
-| **表格打印** | ✅ | ⚠️ | 浏览器完整支持，Node.js 简化版 |
-| **图片打印** | ✅ | ❌ | 仅浏览器支持，Node.js 显示警告 |
-| **进度条** | ❌ | ✅ | Node.js 独有功能 |
-| **彩色输出** | ✅ | ✅ | CSS 样式 vs 自实现 ANSI 终端颜色 |
+| **基础日志** | ✅ | ✅ | `info` / `success` / `warn` / `error` |
+| **调试日志** | ✅ | ✅ | `debug`，可通过 `debug` 配置控制显示 |
+| **前缀支持** | ✅ | ✅ | 构造器或方法级均可设置前缀 |
+| **方法级配置** | ✅ | ✅ | 临时覆盖 `prefix` / `debug` |
+| **错误堆栈** | ✅ | ✅ | 传入 `Error` 对象时一并打印 |
+| **表格打印** | ✅ 完整 | ⚠️ 简化 | 浏览器 `table()` 完整支持；Node.js 请用 `tableSimple()` |
+| **图片打印** | ✅ | ❌ 警告 | 仅浏览器 `img()` 支持，Node.js 调用会输出警告 |
+| **进度条** | ❌ | ✅ | `progress()` 为 Node.js 独有 |
+| **彩色输出** | ✅ CSS | ✅ ANSI | 浏览器 CSS 样式 vs Node.js 自实现 ANSI 转义 |
 
-## 🧪 测试使用
+## 🎨 Node.js 颜色字符串参考
 
-我们提供了完整的测试示例，展示所有功能的使用方法：
+`TerminalColorConfig` 中的颜色值为 `ColorString`，可用 `.` 连接多个 token 进行链式组合（如 `'green.bold.underline'`）
 
-### 📁 测试文件说明
+| 类别 | 可选值 |
+|------|--------|
+| **基本颜色** | `black` `red` `green` `yellow` `blue` `magenta` `cyan` `white` `gray` `grey` |
+| **背景颜色** | `bgBlack` `bgRed` `bgGreen` `bgYellow` `bgBlue` `bgMagenta` `bgCyan` `bgWhite` |
+| **文本修饰** | `bold` `dim` `italic` `underline` `inverse` `hidden` `strikethrough` |
 
-- **[`test/browser.html`](./test/browser.html)** - 浏览器测试页面，美观的 UI 界面
-- **[`test/browserLogger.test.js`](./test/browserLogger.test.js)** - 浏览器测试脚本，包含所有功能演示  
-- **[`test/nodeLogger.test.ts`](./test/nodeLogger.test.ts)** - Node.js 测试脚本，完整的功能测试
+```ts
+// 链式组合示例
+const logger = new NodeLogger({
+  colors: {
+    infoColor: 'cyan.bold', // 青色 + 加粗
+    successColor: 'green.bold.underline', // 绿色 + 加粗 + 下划线
+    errorColor: 'red.bold.bgWhite', // 红字 + 加粗 + 白底
+  },
+})
+```
 
-### 🌐 浏览器测试
+> 终端是否真正着色由 `TerminalColor` 自动检测（`NO_COLOR` / `FORCE_COLOR` 环境变量、是否为 TTY、终端类型等）。未知的 token 会在控制台给出警告并被忽略
+
+## 🧪 测试
+
+本仓库使用 **Vitest + jsdom** 进行单元测试
 
 ```bash
-# 构建项目
-pnpm build
+# 运行全部测试（单次）
+pnpm test
 
-# 启动测试服务器（需要安装 live-server）
-npx live-server test/
+# 监听模式
+pnpm test:watch
+
+# 生成覆盖率报告
+pnpm test:cov
 ```
 
-然后在浏览器中打开 `http://localhost:8080/browser.html`，按 F12 打开控制台查看效果。
+- 测试用例位于 [`test/`](./test) 目录（如 `browserLogger.test.js`、`nodeLogger.test.ts`、`TerminalColor.test.ts`）
+- [`test/browser.html`](./test/browser.html) 是一个用于手动验证浏览器效果的演示页面，可在浏览器中打开后按 F12 查看控制台输出
 
-**测试内容包括：**
-- 🎯 基础日志功能
-- 🆕 前缀和调试模式
-- ⚙️ 方法级配置覆盖  
-- 🎨 自定义颜色主题
-- 📊 表格数据展示
-- 🖼️ 图片打印功能
+## 🗺️ Roadmap / 备注
 
-### 🖥️ Node.js 测试
+- 📝 **写入本地日志文件**（日志轮转 / 自定义格式）正在评估中，属于规划/调研项，**当前版本尚未实现**，请勿在生产中依赖此能力
 
-```bash
-# 构建并运行测试
-pnpm build && pnpm test:node
-```
-
-**测试内容包括：**
-- 🎯 基础日志功能
-- 🆕 方法级配置覆盖
-- 🏷️ 前缀和调试模式
-- 📊 进度条显示
-- ⚡ 性能测试
-
-## 📋 最佳实践
-
-### 🏗️ 项目集成
-
-```js
-// utils/logger.js
-import { BrowserLogger } from '@jl-org/log'
-
-export const logger = new BrowserLogger({ })
-
-// 使用
-import { logger } from './utils/logger'
-logger.info('用户登录成功')
-```
-
-### 🎯 类型安全
-
-```typescript
-// types/logger.d.ts
-import type { BrowserLogger } from '@jl-org/log'
-
-declare global {
-  interface Window {
-    logger: BrowserLogger
-  }
-}
-
-// 全局使用
-window.logger = new BrowserLogger()
-window.logger.info('TypeScript 支持完美')
-```
-
-### 🔧 开发设置
+## 🛠️ 本地开发
 
 ```bash
 # 克隆项目
@@ -397,12 +358,16 @@ cd jl-log
 # 安装依赖
 pnpm install
 
-# 开发构建
+# 构建
 pnpm build
 
 # 运行测试
 pnpm test
 ```
+
+## 📄 License
+
+[MIT](./LICENSE) © [CJL](https://github.com/beixiyo)
 
 ---
 

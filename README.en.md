@@ -4,7 +4,7 @@
 
 **A Beautiful Cross-Platform Logging Tool** ✨
 
-*Colorful log output for both Browser and Node.js environments*
+*Zero-dependency, colorful log output for both Browser and Node.js*
 
 [![NPM Version](https://img.shields.io/npm/v/@jl-org/log.svg)](https://www.npmjs.com/package/@jl-org/log)
 [![License](https://img.shields.io/npm/l/@jl-org/log.svg)](https://github.com/beixiyo/jl-log/blob/main/LICENSE)
@@ -20,10 +20,10 @@
 |---------|-------------|--------|
 | 🌐 **Cross-Platform** | Seamless switching between Browser + Node.js environments | ✅ |
 | 🎨 **Beautiful Output** | Browser color tags + Node.js self-implemented ANSI colored terminal | ✅ |
-| 📦 **Zero Dependencies** | Completely dependency-free, self-implemented color system | ✅ |
+| 📦 **Zero Dependencies** | No external dependencies at all, self-implemented color system (kleur removed in 2.0.0) | ✅ |
 | 🔧 **Unified API** | Same interface for both environments, low learning curve | ✅ |
 | 🎯 **TypeScript** | Complete type definitions, great development experience | ✅ |
-| ⚡ **High Performance** | Optimized rendering algorithms, millisecond response | ✅ |
+| ⚡ **High Performance** | Optimized rendering, millisecond-level response | ✅ |
 
 ## 📸 Effect Preview
 
@@ -31,19 +31,17 @@
 
 ![browser-logger](./docAssets/browser.webp)
 
-*Colorful tag effects in browser console*
+*Colorful tag effects in the browser console*
 
 ### 🖥️ Node.js Terminal
 
 ![node-logger](./docAssets/node.webp)
 
-*Colored text effects in Node.js terminal*
+*Colored text effects in the Node.js terminal*
 
 ---
 
-## 📦 Quick Installation
-
-### Basic Installation
+## 📦 Installation
 
 ```bash
 # Using pnpm (recommended)
@@ -58,10 +56,10 @@ yarn add @jl-org/log
 
 ### Node.js Environment Support
 
-Node.js environment has built-in color support, no additional dependencies required.
+The Node.js environment ships with built-in color support — no extra dependencies required.
 
-> 💡 **Self-implemented Color System**  
-> We use a self-implemented `TerminalColor` class to handle terminal colors, supporting ANSI escape sequences without external dependencies.
+> 💡 **Self-implemented Color System**
+> We use a self-implemented `TerminalColor` class to handle terminal colors via ANSI escape sequences, with no external dependencies (the previous `kleur` dependency was removed in 2.0.0).
 
 ## 🚀 Quick Start
 
@@ -77,9 +75,11 @@ Node.js environment has built-in color support, no additional dependencies requi
   <script type="module">
     import { BrowserLogger } from '@jl-org/log'
 
-    // Create logger instance
+    // Create a logger instance
     const logger = new BrowserLogger({
-      needLog: () => process.env.NODE_ENV !== 'production',
+      // needLog lets your bundler tree-shake logs out of production builds.
+      // Use a build-time flag — `process` does NOT exist in the browser.
+      needLog: () => import.meta.env?.DEV ?? true,
       prefix: 'MyApp',
       debug: true
     })
@@ -115,7 +115,7 @@ Node.js environment has built-in color support, no additional dependencies requi
 ```js
 import { NodeLogger } from '@jl-org/log/node'
 
-// Create logger instance
+// Create a logger instance
 const logger = new NodeLogger({
   debug: process.env.NODE_ENV === 'development',
   prefix: 'MyApp'
@@ -137,10 +137,10 @@ logger.error('API error', null, { prefix: 'API' })
 const colorLogger = new NodeLogger({
   prefix: 'App',
   colors: {
-    infoColor: 'cyan.bold',        // Bold cyan
+    infoColor: 'cyan.bold',          // Bold cyan
     successColor: 'green.underline', // Green underline
-    warningColor: 'magenta',       // Magenta
-    errorColor: 'red.bold.bgWhite' // Bold red on white background
+    warningColor: 'magenta',         // Magenta
+    errorColor: 'red.bold.bgWhite'   // Bold red on white background
   }
 })
 
@@ -158,59 +158,70 @@ for (let i = 0; i <= 100; i += 10) {
   await new Promise(resolve => setTimeout(resolve, 100))
 }
 
-// Simple table
+// Simple key-value table (Node.js only)
 logger.tableSimple({
   'App': 'MyApp',
-  'Version': 'v1.0.0',
+  'Version': 'v2.0.0',
   'Environment': 'production',
   'Port': '3000'
 })
+
+// Low-level terminal helpers (Node.js only)
+logger.clearLine('Replacing the current line...') // clear current line and write new content
+logger.newLine()                                  // print an empty line
+logger.log('Plain cyan text with prefix')         // print plain text
 ```
 
-## 📖 Detailed Documentation
+## 📖 API & Configuration Reference
 
-### 🎨 BrowserLogger Configuration
+### 🎯 Base Config (shared by both environments)
 
 ```typescript
-interface LogOpts {
-  /** Enable logging with dynamic control */
-  needLog?: () => boolean
-  
+/** Base logging options */
+interface BaseLogOpts {
   /** Enable debug mode */
   debug?: boolean
-  
   /** Log prefix */
   prefix?: string
-  
-  /** Custom color configuration */
-  infoColor?: string     // Default: #909399
-  errorColor?: string    // Default: #F56C6C  
-  warningColor?: string  // Default: #E6A23C
-  successColor?: string  // Default: #67C23A
-  
+  /** Whether logs should print; configure per environment. Recommended to let your build tool strip logs */
+  needLog?: () => boolean
+}
+```
+
+### 🎨 BrowserLogger Config (`LogOpts`)
+
+```typescript
+interface LogOpts extends BaseLogOpts {
+  /** Default: #909399 */
+  infoColor?: string
+  /** Default: #F56C6C */
+  errorColor?: string
+  /** Default: #E6A23C */
+  warningColor?: string
+  /** Default: #67C23A */
+  successColor?: string
+
   /** Table style configuration */
   table?: {
+    /** Header */
     header?: {
-      color?: string     // Default: #F2F7FF
-      bgc?: string       // Default: #1455CC
+      /** Default: #F2F7FF */
+      color?: string
+      /** Default: #1455CC */
+      bgc?: string
     }
+    /** Row */
     row?: {
-      color?: string     // Default: #FFF
-      bgc?: string       // Default: #656C66
+      /** Default: #FFF */
+      color?: string
+      /** Default: #656C66 */
+      bgc?: string
     }
   }
 }
-
-/** Method-level configuration options - allows temporary override of constructor config */
-interface MethodConfig {
-  /** Temporarily override prefix */
-  prefix?: string
-  /** Temporarily override debug mode */
-  debug?: boolean
-}
 ```
 
-### 🖥️ NodeLogger Configuration
+### 🖥️ NodeLogger Config (`NodeLogOpts` / `TerminalColorConfig`)
 
 ```typescript
 interface NodeLogOpts extends BaseLogOpts {
@@ -219,190 +230,137 @@ interface NodeLogOpts extends BaseLogOpts {
 }
 
 interface TerminalColorConfig {
-  /** Info log color, supports all TerminalColor color methods and chaining, default: 'blue' */
+  /** Info log color, supports any TerminalColor color and chaining, e.g. 'blue' or 'blue.bold'. Default: 'blue' */
   infoColor?: ColorString
-  /** Success log color, default: 'green' */
+  /** Success log color. Default: 'green' */
   successColor?: ColorString
-  /** Warning log color, default: 'yellow' */
+  /** Warning log color. Default: 'yellow' */
   warningColor?: ColorString
-  /** Error log color, default: 'red' */
+  /** Error log color. Default: 'red' */
   errorColor?: ColorString
-  /** Debug log color, default: 'gray' */
+  /** Debug log color. Default: 'gray' */
   debugColor?: ColorString
+}
+
+/** Progress bar configuration (NodeLogger.progress) */
+interface ProgressConfig {
+  /** Progress message */
+  message: string
+  /** Current progress */
+  current: number
+  /** Total progress */
+  total: number
+  /** Prefix */
+  prefix?: string
+  /** Display type: 'percentage' | 'fraction' | 'auto' */
+  displayType?: ProgressDisplayType
+  /** Custom progress text */
+  customText?: string
+  /** Render on the same line (default: true) */
+  sameLine?: boolean
 }
 ```
 
-### 🔧 Common Interface
+### ⚙️ Method-level Config (`MethodConfig`)
+
+```typescript
+/** Method-level options — temporarily override constructor config */
+interface MethodConfig {
+  /** Temporarily override the prefix */
+  prefix?: string
+  /** Temporarily override debug mode */
+  debug?: boolean
+}
+```
+
+### 🔧 Unified Interface (`ILogger`)
 
 ```typescript
 interface ILogger {
   info(message: string, config?: MethodConfig): void
-  success(message: string, config?: MethodConfig): void  
+  success(message: string, config?: MethodConfig): void
   warn(message: string, config?: MethodConfig): void
   error(message: string, error?: any, config?: MethodConfig): void
   debug?(message: string, config?: MethodConfig): void
+  /** Print an image (browser only) */
   img?(url: string, scale?: number): void
+  /** Print a table */
   table?<T extends object>(data: T[]): void
 }
 ```
 
-## ⚡ Advanced Usage
-
-### 🎨 Custom Themes
-
-```js
-// Dark theme
-const darkLogger = new BrowserLogger({
-  infoColor: '#64B5F6',
-  successColor: '#81C784', 
-  warningColor: '#FFB74D',
-  errorColor: '#E57373'
-})
-
-// Rainbow theme  
-const rainbowLogger = new BrowserLogger({
-  infoColor: '#9C27B0',
-  successColor: '#4CAF50',
-  warningColor: '#FF9800', 
-  errorColor: '#F44336'
-})
-```
-
-### 🚀 Performance Optimization
-
-```js
-// Disable logging in production
-const logger = new BrowserLogger({
-  needLog: () => process.env.NODE_ENV !== 'production'
-})
-
-// Conditional logging
-const logger = new BrowserLogger({
-  needLog: () => window.location.search.includes('debug=true')
-})
-```
-
-### 📊 Data Visualization
-
-```js
-// Complex data table
-const complexData = [
-  { 
-    id: 1,
-    user: { name: 'John', email: 'john@example.com' },
-    stats: { views: 1234, likes: 89 },
-    active: true 
-  }
-]
-logger.table(complexData)
-```
-
-## 🔍 Feature Comparison
+## 🔍 Browser vs Node Feature Matrix
 
 | Feature | 🌐 Browser | 🖥️ Node.js | 📝 Description |
 |---------|------------|-------------|----------------|
-| **Basic Logging** | ✅ | ✅ | info, success, warn, error |
-| **Debug Logging** | ✅ | ✅ | debug method with control |
-| **Prefix Support** | ✅ | ✅ | Unified custom prefix support 🆕 |
-| **Method-level Config** | ✅ | ✅ | Temporary override prefix, debug, etc. 🆕 |
-| **Error Stack** | ✅ | ✅ | Support Error object display |
-| **Table Printing** | ✅ | ⚠️ | Full support in browser, simplified in Node.js |
-| **Image Printing** | ✅ | ❌ | Browser only, Node.js shows warning |
-| **Progress Bar** | ❌ | ✅ | Node.js exclusive feature |
-| **Colored Output** | ✅ | ✅ | CSS styles vs self-implemented ANSI terminal colors |
+| **Basic Logging** | ✅ | ✅ | `info`, `success`, `warn`, `error` |
+| **Debug Logging** | ✅ | ✅ | `debug` method with on/off control |
+| **Prefix Support** | ✅ | ✅ | Unified custom prefix support |
+| **Method-level Config** | ✅ | ✅ | Temporarily override `prefix`, `debug`, etc. |
+| **Error Stack** | ✅ | ✅ | Displays `Error` objects / stacks |
+| **Table Printing** | ✅ Full | ⚠️ Simple | Full styled table in browser; use `tableSimple` in Node.js |
+| **Image Printing** | ✅ | ❌ Warns | Browser only; Node.js prints a warning |
+| **Progress Bar** | ❌ | ✅ | Node.js exclusive (`progress`) |
+| **Colored Output** | ✅ CSS | ✅ ANSI | Browser uses CSS styles, Node.js uses self-implemented ANSI |
+
+## 🌈 Node Color String Reference
+
+Node colors are expressed as strings and can be **chained with `.`** to combine a color, a background, and modifiers, e.g. `'green.bold.underline'` or `'red.bold.bgWhite'`.
+
+| Category | Available values |
+|----------|------------------|
+| **Basic colors** | `black` `red` `green` `yellow` `blue` `magenta` `cyan` `white` `gray` `grey` |
+| **Background colors** | `bgBlack` `bgRed` `bgGreen` `bgYellow` `bgBlue` `bgMagenta` `bgCyan` `bgWhite` |
+| **Modifiers** | `bold` `dim` `italic` `underline` `inverse` `hidden` `strikethrough` |
+
+```ts
+colors: {
+  infoColor: 'cyan',                 // single color
+  successColor: 'green.bold',        // color + modifier
+  warningColor: 'yellow.underline',  // color + modifier
+  errorColor: 'red.bold.bgWhite'     // color + modifier + background
+}
+```
 
 ## 🧪 Testing
 
-We provide comprehensive test examples demonstrating all functionality:
-
-### 📁 Test Files Overview
-
-- **[`test/browser.html`](./test/browser.html)** - Browser test page with beautiful UI interface
-- **[`test/browserLogger.test.js`](./test/browserLogger.test.js)** - Browser test script with all feature demonstrations  
-- **[`test/nodeLogger.test.ts`](./test/nodeLogger.test.ts)** - Node.js test script with complete functionality tests
-
-### 🌐 Browser Testing
+This repo uses **Vitest** (with **jsdom** for the browser-side specs). The specs live under `test/`, and `test/browser.html` is a manual browser demo page.
 
 ```bash
-# Build project
-pnpm build
+# Run all tests once
+pnpm test          # vitest run
 
-# Start test server (requires live-server)
-npx live-server test/
+# Watch mode
+pnpm test:watch    # vitest
+
+# Coverage report
+pnpm test:cov      # vitest run --coverage
 ```
 
-Then open `http://localhost:8080/browser.html` in browser and press F12 to see console output.
+## 🗺️ Roadmap / Notes
 
-**Test Coverage Includes:**
-- 🎯 Basic logging functionality
-- 🆕 Prefix and debug mode
-- ⚙️ Method-level configuration override  
-- 🎨 Custom color themes
-- 📊 Table data display
-- 🖼️ Image printing functionality
+- 📁 **Writing logs to local files** (with rotation / formatting) is currently **under evaluation** — it is *not* implemented yet.
 
-### 🖥️ Node.js Testing
+## 🛠️ Local Development
 
 ```bash
-# Build and run tests
-pnpm build && pnpm test:node
-```
-
-**Test Coverage Includes:**
-- 🎯 Basic logging functionality
-- 🆕 Method-level configuration override
-- 🏷️ Prefix and debug mode
-- 📊 Progress bar display
-- ⚡ Performance testing
-
-## 📋 Best Practices
-
-### 🏗️ Project Integration
-
-```js
-// utils/logger.js
-import { BrowserLogger } from '@jl-org/log'
-
-export const logger = new BrowserLogger({ })
-
-// Usage
-import { logger } from './utils/logger'
-logger.info('User logged in successfully')
-```
-
-### 🎯 Type Safety
-
-```typescript
-// types/logger.d.ts
-import type { BrowserLogger } from '@jl-org/log'
-
-declare global {
-  interface Window {
-    logger: BrowserLogger
-  }
-}
-
-// Global usage
-window.logger = new BrowserLogger()
-window.logger.info('Perfect TypeScript support')
-```
-
-### 🔧 Development Setup
-
-```bash
-# Clone project
+# Clone the project
 git clone https://github.com/beixiyo/jl-log.git
 cd jl-log
 
 # Install dependencies
 pnpm install
 
-# Development build
+# Build
 pnpm build
 
 # Run tests
 pnpm test
 ```
+
+## 📄 License
+
+[MIT](https://github.com/beixiyo/jl-log/blob/main/LICENSE)
 
 ---
 
