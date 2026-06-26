@@ -1,13 +1,14 @@
 {
   "name": "@jl-org/log",
   "version": "2.0.0",
-  "description": "beautiful log",
+  "description": "A beautiful, zero-dependency, cross-platform logger for Browser & Node.js — colorful output, unified API, full TypeScript types.",
+  "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
-  "type": "module",
   "types": "dist/typings/index.d.ts",
+  "sideEffects": false,
   "files": [
-    "/dist"
+    "dist"
   ],
   "exports": {
     ".": {
@@ -29,7 +30,8 @@
         "types": "./dist/node/typings/node/index.d.ts",
         "default": "./dist/node/index.js"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "rollup -c && tsc-alias",
@@ -37,15 +39,45 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:browser": "start ./test/browser.html"
+    "test:browser": "start ./test/browser.html",
+    "prepublishOnly": "pnpm build"
   },
   "keywords": [
     "log",
     "logger",
-    "console"
+    "logging",
+    "console",
+    "color",
+    "colorful",
+    "ansi",
+    "terminal",
+    "browser",
+    "nodejs",
+    "node",
+    "cross-platform",
+    "isomorphic",
+    "typescript",
+    "zero-dependency",
+    "pretty-print",
+    "progress-bar"
   ],
   "author": "CJL <2662442385@qq.com>",
   "license": "MIT",
+  "homepage": "https://github.com/beixiyo/jl-log#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beixiyo/jl-log.git"
+  },
+  "bugs": {
+    "url": "https://github.com/beixiyo/jl-log/issues"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "packageManager": "pnpm@10.24.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@rollup/plugin-alias": "^5.1.0",
     "@rollup/plugin-terser": "^0.4.4",
@@ -59,9 +91,5 @@
     "tsc-alias": "^1.8.8",
     "tslib": "^2.6.2",
     "vitest": "^4.1.9"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "homepage": "https://github.com/beixiyo/jl-log"
+  }
 }
