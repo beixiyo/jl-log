@@ -278,6 +278,12 @@ interface MethodConfig {
   prefix?: string
   /** Temporarily override debug mode */
   debug?: boolean
+  /**
+   * Per-log structured context fields, merged into the jsonl line (e.g. `{ orderId, sku }`).
+   * Merged with the constructor-time `file.meta` (ambient defaults); on key clash the per-call value wins.
+   * In Electron, the renderer's meta is forwarded over IPC to the main-process file.
+   */
+  meta?: Record<string, unknown>
 }
 ```
 
@@ -362,7 +368,7 @@ const logger = new NodeLogger({
   prefix: 'App',
   file: {
     path: 'logs/app.log',   // the directory is created automatically
-    format: 'ndjson',       // 'ndjson' (default, one JSON per line) or 'text'
+    format: 'jsonl',       // 'jsonl' (default, one JSON per line) or 'text'
     size: '10M',            // rotate by size: B / K / M / G
     interval: '1d',         // rotate by time: s / m / h / d / M (can combine with size)
     maxFiles: 7,            // keep at most 7 rotated files, oldest removed first
@@ -371,18 +377,52 @@ const logger = new NodeLogger({
   },
 })
 
-logger.info('server started')           // colored terminal output + NDJSON to file
+logger.info('server started')           // colored terminal output + jsonl to file
 logger.error('oops', new Error('boom'))
 
 // auto-flushed & closed on natural process exit (autoClose, on by default); see "Exit & flushing" below
 await logger.close()
 ```
 
-File output is plain text with **ANSI colors stripped** (the terminal stays colorful). Default NDJSON sample:
+File output is plain text with **ANSI colors stripped** (the terminal stays colorful). Default jsonl sample:
 
 ```json
 {"time":"2026-06-27T03:00:00.000Z","level":"info","msg":"[App] server started"}
 {"time":"2026-06-27T03:00:01.000Z","level":"error","msg":"[App] oops","detail":"Error: boom\n    at ..."}
+```
+
+**Fully customizable output**: everything except `level` — time, fields, whole-line layout — is controllable (all backward-compatible, additive):
+
+```ts
+const logger = new NodeLogger({
+  file: {
+    path: 'logs/app.log',
+
+    // ① time field for built-in formats: default ISO UTC. May return a string or an epoch number
+    formatTime: d => new Date(d.getTime() + 8 * 3600_000).toISOString().replace('Z', '+08:00'),
+    // formatTime: d => d.getTime(),   // or numeric epoch ms: most compact, naturally sortable
+
+    // ② ambient fields merged into every jsonl line (a function is re-evaluated per log, reading live values); never overrides built-in time/level/msg
+    meta: () => ({ sessionId, appVersion: '2.0.0' }),
+
+    // ③ full line control: a function takes over entirely (newline auto-appended). When set, 'jsonl'/'text' and the assembly above no longer apply; derive time from r.date
+    // format: r => `${r.date.toISOString()} [${r.level}] ${r.message}`,
+  },
+})
+
+// Attach per-event fields at call time; merged with constructor meta, per-call wins on clash:
+logger.info('purchase', { meta: { orderId: 'o-9', sku: 'A-1' } })
+// line: {"sessionId":"...","appVersion":"2.0.0","orderId":"o-9","sku":"A-1","time":"2026-06-27T11:00:00.000+08:00","level":"info","msg":"[App] purchase"}
+```
+
+`meta` has two layers: **constructor** (`file.meta`) for ambient defaults (sessionId, version, route — a function reads live values), **per-call** (`MethodConfig.meta`) for single-event context; merged, per-call wins. So a bug report can be pinpointed with `jq 'select(.orderId=="o-9")'`.
+
+The `FileLogRecord` passed to `format`: `{ date (raw instant — format it yourself), level, message, detail, meta (merged) }`. `formatTime` only affects the built-in `'jsonl'`/`'text'`.
+
+**Timezone tip**: the default ISO UTC (or epoch number) is globally sortable and unambiguous — best for time-range retrieval. If you switch to a local format, **keep the offset** (e.g. `…+08:00`); a string without it can't tell you the zone and won't sort across regions. To show a user's local time, stash it in `meta` and keep `time` as UTC:
+
+```ts
+meta: () => ({ localTime: new Date().toLocaleString(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
 ```
 
 **Exit & flushing**:
@@ -429,7 +469,7 @@ const log = new BrowserLogger({ prefix: 'UserPage', onLog: forwardToMain })
 log.info('clicked submit')   // shows in the browser console + lands in the main-process file
 ```
 
-Output is NDJSON; each line's `time` is the **renderer-side origin time** (not the main-process write time), and `prefix` identifies the page / module — `jq` / `grep` on the time field gives you exactly the range a bug report needs:
+Output is jsonl; each line's `time` is the **renderer-side origin time** (not the main-process write time), and `prefix` identifies the page / module — `jq` / `grep` on the time field gives you exactly the range a bug report needs:
 
 ```json
 {"time":"2026-06-27T03:00:00.000Z","level":"info","msg":"[UserPage] clicked submit"}
@@ -440,40 +480,3 @@ Output is NDJSON; each line's `time` is the **renderer-side origin time** (not t
 - `onLog` is a generic subscription hook (not Electron-only) — you can also use it to forward logs to *WebSocket* / *Sentry* etc.; it's gated by `needLog`, so suppressed logs won't fire.
 - The main side validates the IPC payload shape and drops malformed data, so a misbehaving renderer can't corrupt the file.
 - `listenElectronLogs` returns an unsubscribe function — call it to detach the listener when needed.
-
-## 🗺️ Roadmap / Notes
-
-- ✅ **Writing logs to local files**: supported, with size / time rotation, gzip compression and retention cleanup (see *File Logging* above).
-- ✅ **Electron end-to-end persistence**: renderer logs forwarded over IPC to the main process and written to a single file (see *Electron End-to-End Logging* above).
-- 📝 **Rotation by line count**: not supported by rotating-file-stream, so not provided.
-
-## 🛠️ Local Development
-
-```bash
-# Clone the project
-git clone https://github.com/beixiyo/jl-log.git
-cd jl-log
-
-# Install dependencies
-pnpm install
-
-# Build
-pnpm build
-
-# Run tests
-pnpm test
-```
-
-## 📄 License
-
-[MIT](https://github.com/beixiyo/jl-log/blob/main/LICENSE)
-
----
-
-<div align="center">
-
-**If this project helps you, please give it a ⭐ Star!**
-
-Made with ❤️ by [CJL](https://github.com/beixiyo)
-
-</div>
