@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -36,9 +36,14 @@ let dir: string
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'jl-log-electron-'))
+  // 渲染端会真打日志（含故意的 error），静默控制台避免污染测试输出
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   delete (globalThis as any)[JL_LOG_BRIDGE_KEY]
   await rm(dir, { recursive: true, force: true })
 })
@@ -82,6 +87,24 @@ describe('Electron 渲染进程 → 主进程日志桥', () => {
     // 落盘时间应等于渲染端产生时间，而非主进程写入时间
     expect(recs[0].time).toBe(sent[0].time)
     expect(recs[1].time).toBe(sent[1].time)
+  })
+
+  it('渲染端按调用传入的 meta 随 IPC 转发并落盘', async () => {
+    const { ipcMain, ipcRenderer, contextBridge } = makeElectronMock()
+
+    const file = join(dir, 'app.log')
+    const main = new NodeLogger({ file: { path: file } })
+    listenElectronLogs(ipcMain, main)
+
+    const { exposeLogBridge } = await import('@/index')
+    exposeLogBridge(contextBridge, ipcRenderer)
+    const renderer = new BrowserLogger({ prefix: 'UserPage', onLog: forwardToMain })
+
+    renderer.info('purchase', { meta: { sku: 'A-1', orderId: 'o-9' } })
+    await main.close()
+
+    const rec = JSON.parse((await readFile(file, 'utf8')).trim())
+    expect(rec).toMatchObject({ level: 'info', msg: '[UserPage] purchase', sku: 'A-1', orderId: 'o-9' })
   })
 
   it('forwardToMain 在无桥（非 Electron / 未注入 preload）时静默跳过', () => {

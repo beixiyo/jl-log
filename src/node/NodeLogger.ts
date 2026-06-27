@@ -58,7 +58,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.infoColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
-    this.fileTransport?.write('info', `${finalPrefix}${message}`)
+    this.fileTransport?.write('info', `${finalPrefix}${message}`, { meta: config?.meta })
   }
 
   /**
@@ -70,7 +70,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.successColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
-    this.fileTransport?.write('success', `${finalPrefix}${message}`)
+    this.fileTransport?.write('success', `${finalPrefix}${message}`, { meta: config?.meta })
   }
 
   /**
@@ -82,7 +82,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.warningColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
-    this.fileTransport?.write('warn', `${finalPrefix}${message}`)
+    this.fileTransport?.write('warn', `${finalPrefix}${message}`, { meta: config?.meta })
   }
 
   /**
@@ -100,9 +100,12 @@ export class NodeLogger extends BaseLogger implements ILogger {
     this.fileTransport?.write(
       'error',
       `${finalPrefix}${message}`,
-      error
-        ? (error instanceof Error ? error.stack || error.message : error)
-        : undefined
+      {
+        detail: error
+          ? (error instanceof Error ? error.stack || error.message : error)
+          : undefined,
+        meta: config?.meta,
+      }
     )
   }
 
@@ -117,7 +120,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
       const finalPrefix = this.getFinalPrefix(config)
       const colorMethod = this.getColorMethod(this.colors.debugColor)
       console.log(colorMethod(`${finalPrefix}${message}`))
-      this.fileTransport?.write('debug', `${finalPrefix}${message}`)
+      this.fileTransport?.write('debug', `${finalPrefix}${message}`, { meta: config?.meta })
     }
   }
 
@@ -222,11 +225,15 @@ export class NodeLogger extends BaseLogger implements ILogger {
   /**
    * 写入一条来自外部的结构化日志记录（如 Electron 渲染进程经 IPC 转发而来）
    *
-   * 直接落盘，保留记录自带的产生时间；未启用文件日志时为空操作。
+   * 直接落盘，保留记录自带的产生时间与 meta 字段；未启用文件日志时为空操作。
    * 一般无需手动调用，配合 {@link listenElectronLogs} 自动接收
    */
   writeRecord(record: LogRecordPayload): void {
-    this.fileTransport?.write(record.level, record.message, record.detail, record.time)
+    this.fileTransport?.write(record.level, record.message, {
+      detail: record.detail,
+      time: record.time,
+      meta: record.meta,
+    })
   }
 
   /**

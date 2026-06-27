@@ -81,8 +81,27 @@ export interface NodeLogOpts extends BaseLogOpts {
   file?: FileLogOptions
 }
 
-/** 落盘格式 */
-export type FileLogFormat = 'ndjson' | 'text'
+import type { LogLevel } from '../shared/ipc'
+
+/** 内置落盘格式 */
+export type FileLogFormat = 'jsonl' | 'text'
+
+/** 传给自定义格式化函数的一条记录 */
+export interface FileLogRecord {
+  /** 该条日志的原始时间实例，自行格式化（如东八区、epoch）后写进结果 */
+  date: Date
+  /** 日志级别 */
+  level: LogLevel
+  /** 已拼好前缀的消息正文 */
+  message: string
+  /** 附加详情（错误堆栈、可序列化对象等） */
+  detail?: unknown
+  /** {@link FileLogOptions.meta} 解析后的固定字段 */
+  meta?: Record<string, unknown>
+}
+
+/** 自定义落盘格式化函数，返回写入文件的一行（无需手动加换行，缺失时会自动补） */
+export type FileLogFormatFn = (record: FileLogRecord) => string
 
 /**
  * 文件日志配置
@@ -96,10 +115,43 @@ export interface FileLogOptions {
   /** 日志文件路径，相对或绝对均可，所在目录不存在时会自动创建 */
   path: string
   /**
-   * 落盘格式：`ndjson` 每行一个 JSON 对象（机器友好，可 tail / grep / jq）；`text` 为带时间戳的纯文本行
-   * @default 'ndjson'
+   * 落盘格式：
+   * - `'jsonl'`（默认）即 JSON Lines，每行一个 JSON 对象（机器友好，可 tail / grep / jq）
+   * - `'text'` 带时间戳的纯文本行
+   * - 传入函数则**完全自定义**每行内容，函数收到结构化记录、返回字符串（缺失换行会自动补）
+   * @default 'jsonl'
    */
-  format?: FileLogFormat
+  format?: FileLogFormat | FileLogFormatFn
+  /**
+   * 格式化 `time` 字段：入参是该条日志的原始时间实例（跨进程转发时为产生端时间），
+   * 返回写入的时间（字符串或 epoch 毫秒数字）。默认 ISO 8601 UTC，可返回
+   * `date.getTime()` 得数字 epoch，或自定义本地格式
+   *
+   * 仅作用于内置 `'jsonl'` / `'text'` 格式；用了自定义 `format` 函数时本项不生效，
+   * 请在函数里从 `record.date` 自行格式化
+   *
+   * 注意：用于按时间范围检索时，字符串需「定宽且带固定时区偏移」才能保证排序正确，
+   * 否则建议用 UTC ISO 或数字 epoch（见 README）
+   * @default (date) => date.toISOString()
+   */
+  formatTime?: (date: Date) => string | number
+  /**
+   * 每条记录自动并入的固定字段，会写进 jsonl 顶层（如 `{ sessionId, appVersion }`）；
+   * 自定义格式化函数可经 `record.meta` 读取。传函数则每条日志求值一次（适合动态值）
+   *
+   * 注意：内置 `time` / `level` / `msg` 字段优先，meta 不会覆盖它们
+   *
+   * @example
+   * 多地区 App 想保留「用户本地时间 / 时区」又不破坏 time 的可排序性时，
+   * 让 time 仍用 UTC / epoch，另把本地信息放进 meta（在产生端调用以抓到真实时区）：
+   * ```ts
+   * meta: () => ({
+   *   localTime: new Date().toLocaleString(),                       // 用户当地可读时间
+   *   tz: Intl.DateTimeFormat().resolvedOptions().timeZone,         // 如 'America/New_York'
+   * })
+   * ```
+   */
+  meta?: Record<string, unknown> | (() => Record<string, unknown>)
   /** 按大小轮转，如 `'10M'`、`'500K'`、`'1G'`（单位 B / K / M / G），可与 `interval` 同时使用 */
   size?: string
   /** 按时间轮转，如 `'1d'`、`'12h'`、`'30m'`、`'1M'`（单位 s / m / h / d / M） */

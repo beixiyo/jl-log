@@ -54,6 +54,13 @@ export interface MethodConfig {
   prefix?: string
   /** 临时覆盖调试模式 */
   debug?: boolean
+  /**
+   * 本条日志的结构化上下文字段，写文件时并入 jsonl 顶层（如 `{ orderId, sku }`）
+   *
+   * 与文件配置里的「构造期 meta（环境默认）」合并，**同名时本条优先**；
+   * Electron 渲染进程的 meta 会随 IPC 一并转发到主进程落盘
+   */
+  meta?: Record<string, unknown>
 }
 
 /** 统一的日志接口 - 定义两端都需要实现的基础方法 */

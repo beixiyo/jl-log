@@ -24,6 +24,8 @@ export interface LogRecordPayload {
   detail?: unknown
   /** ISO 时间戳，记录在「产生端」生成，便于按时间范围检索 */
   time: string
+  /** 本条日志的结构化上下文字段（如 `{ orderId, sku }`），落盘时并入 jsonl 顶层 */
+  meta?: Record<string, unknown>
 }
 
 /** preload 暴露给渲染进程的桥接对象结构 */

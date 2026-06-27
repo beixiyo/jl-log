@@ -10,7 +10,7 @@
  */
 
 import { basename, dirname } from 'node:path'
-import type { FileLogOptions } from './types'
+import type { FileLogFormat, FileLogFormatFn, FileLogOptions } from './types'
 import type { LogLevel } from '../shared/ipc'
 
 /** 可选接管的终止信号 */
@@ -25,7 +25,7 @@ const SIGNAL_EXIT_CODE: Record<Signal, number> = {
 }
 
 export class FileTransport {
-  private readonly opts: FileLogOptions & { format: FileLogFormat }
+  private readonly opts: FileLogOptions & { format: FileLogFormat | FileLogFormatFn }
   private stream: RotatingStream | null = null
   /** rfs 就绪前先缓存日志行，就绪后回放 */
   private buffer: string[] = []
@@ -35,7 +35,7 @@ export class FileTransport {
   private readonly ready: Promise<void>
 
   constructor(opts: FileLogOptions) {
-    this.opts = { format: 'ndjson', autoClose: true, handleSignals: false, ...opts }
+    this.opts = { format: 'jsonl', autoClose: true, handleSignals: false, ...opts }
     this.ready = this.init()
 
     // 默认监听进程自然退出（beforeExit），自动刷新关闭，无需手动调用 close()
@@ -66,13 +66,14 @@ export class FileTransport {
   /**
    * 写入一条日志（message 应为已去除 ANSI 颜色的纯文本）
    *
-   * @param time 记录产生时间（ISO 字符串），不传则用当前时间；
-   *             跨进程转发时传入产生端时间，保证时间范围检索准确
+   * @param opts.time 记录产生时间（ISO 字符串），不传则用当前时间；跨进程转发时传入产生端时间
+   * @param opts.detail 附加详情（错误堆栈、可序列化对象等）
+   * @param opts.meta 本条日志的结构化字段，与构造期 meta 合并（本条优先）
    */
-  write(level: LogLevel, message: string, detail?: unknown, time?: string): void {
+  write(level: LogLevel, message: string, opts: WriteOptions = {}): void {
     if (this.closed) return
 
-    const line = this.format(level, message, detail, time)
+    const line = this.format(level, message, opts)
     if (this.stream) {
       this.stream.write(line)
     }
@@ -162,10 +163,31 @@ export class FileTransport {
     }
   }
 
-  private format(level: LogLevel, message: string, detail?: unknown, time?: string): string {
-    const ts = time ?? new Date().toISOString()
+  private format(level: LogLevel, message: string, opts: WriteOptions): string {
+    const { detail, time, meta: callMeta } = opts
 
-    if (this.opts.format === 'text') {
+    const date = time ? new Date(time) : new Date()
+
+    // 构造期 meta（环境默认）与本条 meta 合并，同名时本条优先
+    const ambient = typeof this.opts.meta === 'function'
+      ? this.opts.meta()
+      : this.opts.meta
+    const meta = (ambient || callMeta)
+      ? { ...ambient, ...callMeta }
+      : undefined
+
+    const { format } = this.opts
+
+    // 完全自定义：交给用户函数掌控整行，时间从 record.date 自取（formatTime 不参与）
+    if (typeof format === 'function') {
+      const out = format({ date, level, message, detail, meta })
+      return out.endsWith('\n') ? out : `${out}\n`
+    }
+
+    // 内置格式：formatTime 渲染 time 字段（默认 ISO UTC）
+    const ts = this.opts.formatTime ? this.opts.formatTime(date) : date.toISOString()
+
+    if (format === 'text') {
       const tail = detail === undefined
         ? ''
         : ` ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`
@@ -173,7 +195,9 @@ export class FileTransport {
       return `${ts} ${level.toUpperCase().padEnd(7)} ${message}${tail}\n`
     }
 
+    // jsonl：meta 先铺底，内置字段后写，保证 time / level / msg 不被 meta 覆盖
     const record: LogRecord = {
+      ...meta,
       time: ts,
       level,
       msg: message,
@@ -186,8 +210,15 @@ export class FileTransport {
   }
 }
 
-/** 落盘格式 */
-type FileLogFormat = NonNullable<FileLogOptions['format']>
+/** 单条写入的可选项 */
+interface WriteOptions {
+  /** 附加详情（错误堆栈、可序列化对象等） */
+  detail?: unknown
+  /** 记录产生时间（ISO 字符串），跨进程转发时为产生端时间 */
+  time?: string
+  /** 本条日志的结构化字段，与构造期 meta 合并（本条优先） */
+  meta?: Record<string, unknown>
+}
 
 /** rfs 流的最小结构（避免对 rotating-file-stream 产生类型硬依赖） */
 interface RotatingStream {
@@ -198,10 +229,11 @@ interface RotatingStream {
 
 type CreateStream = (filename: string, options?: Record<string, any>) => RotatingStream
 
-/** NDJSON 落盘记录结构 */
+/** jsonl 落盘记录结构（允许并入 meta 自定义字段） */
 interface LogRecord {
-  time: string
+  time: string | number
   level: LogLevel
   msg: string
   detail?: unknown
+  [key: string]: unknown
 }

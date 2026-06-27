@@ -25,7 +25,7 @@ export abstract class BaseLogger {
    *
    * 受 `needLog` 控制，被抑制的日志不会派发；未配置 `onLog` 时为空操作
    */
-  protected emitRecord(level: LogLevel, message: string, detail?: unknown): void {
+  protected emitRecord(level: LogLevel, message: string, detail?: unknown, meta?: Record<string, unknown>): void {
     if (!this.onLog || !this.shouldLog()) return
 
     const record: LogRecordPayload = {
@@ -35,6 +35,9 @@ export abstract class BaseLogger {
     }
     if (detail !== undefined) {
       record.detail = detail
+    }
+    if (meta !== undefined) {
+      record.meta = meta
     }
 
     this.onLog(record)

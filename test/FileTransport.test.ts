@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -12,14 +12,19 @@ let dir: string
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'jl-log-'))
+  // 用例会真打日志（含故意的 error），静默控制台避免污染测试输出
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await rm(dir, { recursive: true, force: true })
 })
 
 describe('NodeLogger 文件日志（rotating-file-stream）', () => {
-  it('默认以 NDJSON 写入，每行一个 JSON 记录', async () => {
+  it('默认以 jsonl 写入，每行一个 JSON 记录', async () => {
     const file = join(dir, 'app.log')
     const logger = new NodeLogger({ file: { path: file } })
 
@@ -157,5 +162,109 @@ describe('NodeLogger 文件日志（rotating-file-stream）', () => {
     await logger.close()
     expect(process.listenerCount('SIGINT')).toBe(sigint)
     expect(process.listenerCount('SIGTERM')).toBe(sigterm)
+  })
+
+  it('format 传函数时完全自定义每行内容，时间从 record.date 自取（自动补换行）', async () => {
+    const file = join(dir, 'app.log')
+    const logger = new NodeLogger({
+      file: {
+        path: file,
+        format: r => `${r.date instanceof Date ? 'T' : '?'} ${r.level.toUpperCase()} | ${r.message}`,
+      },
+    })
+
+    logger.info('hi')
+    logger.warn('yo')
+    await logger.close()
+
+    expect(await readFile(file, 'utf8')).toBe('T INFO | hi\nT WARN | yo\n')
+  })
+
+  it('formatTime 可把时间格式化为东八区', async () => {
+    const file = join(dir, 'app.log')
+    const logger = new NodeLogger({
+      file: {
+        path: file,
+        formatTime: d => new Date(d.getTime() + 8 * 3600_000).toISOString().replace('Z', '+08:00'),
+      },
+    })
+
+    logger.info('tz')
+    await logger.close()
+
+    const rec = JSON.parse((await readFile(file, 'utf8')).trim())
+    expect(rec.time).toMatch(/\+08:00$/)
+  })
+
+  it('formatTime 可返回 epoch 数字，jsonl 的 time 为数字', async () => {
+    const file = join(dir, 'app.log')
+    const logger = new NodeLogger({
+      file: { path: file, formatTime: d => d.getTime() },
+    })
+
+    logger.info('epoch')
+    await logger.close()
+
+    const rec = JSON.parse((await readFile(file, 'utf8')).trim())
+    expect(typeof rec.time).toBe('number')
+    expect(rec.time).toBeGreaterThan(1_700_000_000_000)
+  })
+
+  it('meta 字段并入 jsonl 顶层，且不覆盖内置 time/level/msg', async () => {
+    const file = join(dir, 'app.log')
+    const logger = new NodeLogger({
+      file: { path: file, meta: { sessionId: 'abc', level: 'HACK' } },
+    })
+
+    logger.info('with meta')
+    await logger.close()
+
+    const rec = JSON.parse((await readFile(file, 'utf8')).trim())
+    expect(rec.sessionId).toBe('abc')
+    expect(rec.msg).toBe('with meta')
+    expect(rec.level).toBe('info') // 内置字段优先，meta 不能覆盖
+  })
+
+  it('meta 传函数时每条日志求值一次（适合动态值）', async () => {
+    const file = join(dir, 'app.log')
+    let n = 0
+    const logger = new NodeLogger({
+      file: { path: file, meta: () => ({ seq: ++n }) },
+    })
+
+    logger.info('a')
+    logger.info('b')
+    await logger.close()
+
+    const recs = (await readFile(file, 'utf8')).trim().split('\n').map(l => JSON.parse(l))
+    expect(recs.map(r => r.seq)).toEqual([1, 2])
+  })
+
+  it('按调用传入的 meta 与构造期 meta 合并，且本条优先', async () => {
+    const file = join(dir, 'app.log')
+    const logger = new NodeLogger({
+      file: { path: file, meta: () => ({ route: '/home', sessionId: 's1' }) },
+    })
+
+    logger.info('purchase', { meta: { sku: 'A-1', route: '/checkout' } })
+    await logger.close()
+
+    const rec = JSON.parse((await readFile(file, 'utf8')).trim())
+    expect(rec.sessionId).toBe('s1')      // 来自构造期环境字段
+    expect(rec.sku).toBe('A-1')           // 来自本条
+    expect(rec.route).toBe('/checkout')   // 同名时本条优先
+    expect(rec.msg).toBe('purchase')
+  })
+
+  it('error 的按调用 meta 与 detail 同时落盘', async () => {
+    const file = join(dir, 'app.log')
+    const logger = new NodeLogger({ file: { path: file } })
+
+    logger.error('failed', new Error('oops'), { meta: { orderId: 'o-9' } })
+    await logger.close()
+
+    const rec = JSON.parse((await readFile(file, 'utf8')).trim())
+    expect(rec.orderId).toBe('o-9')
+    expect(String(rec.detail)).toContain('oops')
   })
 })
