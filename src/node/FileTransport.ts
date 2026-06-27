@@ -10,7 +10,8 @@
  */
 
 import { basename, dirname } from 'node:path'
-import type { FileLogOptions, LogLevel } from './types'
+import type { FileLogOptions } from './types'
+import type { LogLevel } from '../shared/ipc'
 
 /** 可选接管的终止信号 */
 const SIGNALS = ['SIGINT', 'SIGTERM'] as const
@@ -64,11 +65,14 @@ export class FileTransport {
 
   /**
    * 写入一条日志（message 应为已去除 ANSI 颜色的纯文本）
+   *
+   * @param time 记录产生时间（ISO 字符串），不传则用当前时间；
+   *             跨进程转发时传入产生端时间，保证时间范围检索准确
    */
-  write(level: LogLevel, message: string, detail?: unknown): void {
+  write(level: LogLevel, message: string, detail?: unknown, time?: string): void {
     if (this.closed) return
 
-    const line = this.format(level, message, detail)
+    const line = this.format(level, message, detail, time)
     if (this.stream) {
       this.stream.write(line)
     }
@@ -158,18 +162,19 @@ export class FileTransport {
     }
   }
 
-  private format(level: LogLevel, message: string, detail?: unknown): string {
+  private format(level: LogLevel, message: string, detail?: unknown, time?: string): string {
+    const ts = time ?? new Date().toISOString()
+
     if (this.opts.format === 'text') {
-      const time = new Date().toISOString()
       const tail = detail === undefined
         ? ''
         : ` ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`
 
-      return `${time} ${level.toUpperCase().padEnd(7)} ${message}${tail}\n`
+      return `${ts} ${level.toUpperCase().padEnd(7)} ${message}${tail}\n`
     }
 
     const record: LogRecord = {
-      time: new Date().toISOString(),
+      time: ts,
       level,
       msg: message,
     }

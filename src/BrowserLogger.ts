@@ -24,6 +24,7 @@ export class BrowserLogger extends BaseLogger implements ILogger {
       this.opts.infoColor,
       this.opts.needLog
     )
+    this.emitRecord('info', `${finalPrefix}${message}`)
   }
 
   /**
@@ -37,6 +38,7 @@ export class BrowserLogger extends BaseLogger implements ILogger {
       this.opts.successColor,
       this.opts.needLog
     )
+    this.emitRecord('success', `${finalPrefix}${message}`)
   }
 
   /**
@@ -50,6 +52,7 @@ export class BrowserLogger extends BaseLogger implements ILogger {
       this.opts.warningColor,
       this.opts.needLog
     )
+    this.emitRecord('warn', `${finalPrefix}${message}`)
   }
 
   /**
@@ -66,6 +69,13 @@ export class BrowserLogger extends BaseLogger implements ILogger {
     if (this.opts.needLog() && error) {
       console.error(error)
     }
+    this.emitRecord(
+      'error',
+      `${finalPrefix}${message}`,
+      error
+        ? (error instanceof Error ? error.stack || error.message : error)
+        : undefined
+    )
   }
 
   /**
@@ -83,6 +93,7 @@ export class BrowserLogger extends BaseLogger implements ILogger {
         this.opts.debugColor,
         this.opts.needLog
       )
+      this.emitRecord('debug', `${finalPrefix}${message}`)
     }
   }
 

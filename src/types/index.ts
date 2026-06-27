@@ -1,3 +1,5 @@
+import type { LogRecordPayload } from '../shared/ipc'
+
 /** 基础日志配置 */
 export interface BaseLogOpts {
   /** 是否启用调试模式 */
@@ -6,6 +8,13 @@ export interface BaseLogOpts {
   prefix?: string
   /** 是否需要打印，可根据环境配置，建议用构建工具删除打印 */
   needLog?: () => boolean
+  /**
+   * 每条日志产生时的订阅回调，收到一条「已拼好前缀」的结构化记录
+   *
+   * 典型用途是 Electron 渲染进程把日志经 IPC 转发到主进程落盘，
+   * 可直接传入 {@link forwardToMain}；受 `needLog` 控制，被抑制的日志不会触发
+   */
+  onLog?: (record: LogRecordPayload) => void
 }
 
 /** 浏览器环境日志配置 */

@@ -181,6 +181,12 @@ interface BaseLogOpts {
   prefix?: string
   /** 是否需要打印，可根据环境返回布尔值；建议配合构建工具删除生产日志 */
   needLog?: () => boolean
+  /**
+   * 每条日志产生时的订阅回调，收到一条「已拼好前缀」的结构化记录
+   * 典型用途是 Electron 渲染进程经 IPC 转发落盘（可直接传入 `forwardToMain`）；
+   * 受 `needLog` 控制，被抑制的日志不会触发
+   */
+  onLog?: (record: LogRecordPayload) => void
 }
 
 /** 浏览器环境日志配置 */
@@ -346,7 +352,7 @@ pnpm test:cov
 
 ## 📁 文件日志（写入本地）
 
-Node 端可将日志在终端输出的同时写入本地文件，并基于「可选依赖」[rotating-file-stream](https://github.com/iccicci/rotating-file-stream) 实现按 **大小 / 时间** 轮转、gzip 压缩与保留清理。
+Node 端可将日志在终端输出的同时写入本地文件，并基于「可选依赖」[rotating-file-stream](https://github.com/iccicci/rotating-file-stream) 实现按 **大小 / 时间** 轮转、gzip 压缩与保留清理
 
 > 该依赖为可选项，仅在使用文件日志时才需安装：
 >
@@ -390,11 +396,60 @@ await logger.close()
 - 被**信号**打断（`SIGINT`/`SIGTERM`，如 Ctrl+C / `kill`）时 `autoClose` 不触发；可设 `handleSignals: true`，收到信号后先刷新再退出（仅当你的应用自身没有信号处理时启用，否则会与宿主关闭流程冲突）
 - **Electron** 主进程会拦截退出流程，`beforeExit` 与信号都不可靠 —— 请在 `app.on('before-quit', () => logger.close())` 里手动调用
 
-> ⚠️ `rotating-file-stream` 仅支持「按大小 / 时间」轮转，**不支持按文件行数轮转**。
+> ⚠️ `rotating-file-stream` 仅支持「按大小 / 时间」轮转，**不支持按文件行数轮转**
+
+## 🖥️ Electron 全链路日志（渲染进程 → 主进程落盘）
+
+桌面应用常需**分页面 / 模块收集用户操作日志**，并在用户反馈 bug 时回捞**指定时间段**的记录。本库提供一条轻量 IPC 通道：渲染进程的日志经 preload 桥转发给主进程，由主进程统一写入同一个文件（复用上文的轮转 / 压缩能力）
+
+**全程不引入 `electron`** —— `ipcMain` / `ipcRenderer` / `contextBridge` 均由你注入，因此不增加依赖、不挑 electron 版本，并兼容 `contextIsolation` 开 / 关两种模式。三处各加几行即可：
+
+```ts
+// 1️⃣ preload.ts —— 把发送桥安全暴露给渲染进程
+import { contextBridge, ipcRenderer } from 'electron'
+import { exposeLogBridge } from '@jl-org/log'
+
+exposeLogBridge(contextBridge, ipcRenderer)
+```
+
+```ts
+// 2️⃣ main.ts —— 主进程接收并落盘
+import { app, ipcMain } from 'electron'
+import { NodeLogger, listenElectronLogs } from '@jl-org/log/node'
+
+const logger = new NodeLogger({
+  file: { path: 'logs/app.log', size: '10M', maxFiles: 5 },
+})
+
+listenElectronLogs(ipcMain, logger)              // 监听渲染进程日志，写入同一文件
+app.on('before-quit', () => { void logger.close() })  // 退出前刷新关闭
+```
+
+```ts
+// 3️⃣ 渲染进程 —— 每个页面 / 模块用 prefix 区分
+import { BrowserLogger, forwardToMain } from '@jl-org/log'
+
+const log = new BrowserLogger({ prefix: 'UserPage', onLog: forwardToMain })
+
+log.info('clicked submit')   // 浏览器控制台显示 + 经 IPC 落到主进程文件
+```
+
+落盘为 NDJSON，每行的 `time` 是**渲染端产生时间**（而非主进程写入时间），`prefix` 标识页面 / 模块，用 `jq` / `grep` 按时间字段即可筛出 bug 反馈所需区间：
+
+```json
+{"time":"2026-06-27T03:00:00.000Z","level":"info","msg":"[UserPage] clicked submit"}
+```
+
+**说明**：
+
+- `onLog` 是通用订阅钩子（不止 Electron），你也可拿它把日志转发到 *WebSocket* / *Sentry* 等；受 `needLog` 控制，被抑制的日志不会触发
+- 主进程侧会校验 IPC 负载结构，丢弃非法数据，避免渲染进程发来脏数据写穿文件
+- `listenElectronLogs` 返回一个取消监听函数，需要时调用即可解除绑定
 
 ## 🗺️ Roadmap / 备注
 
 - ✅ **写入本地日志文件**：已支持按大小 / 时间轮转、gzip 压缩与保留清理（见上文「文件日志」）
+- ✅ **Electron 全链路落盘**：渲染进程经 IPC 转发到主进程统一写文件（见上文「Electron 全链路日志」）
 - 📝 **按文件行数轮转**：rotating-file-stream 不支持，暂未提供
 
 ## 🛠️ 本地开发

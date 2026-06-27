@@ -1,4 +1,5 @@
 import type { BaseLogOpts, MethodConfig } from '../types'
+import type { LogLevel, LogRecordPayload } from '../shared/ipc'
 
 /**
  * 基础日志类，包含两端通用的逻辑
@@ -7,14 +8,36 @@ export abstract class BaseLogger {
   protected debugEnabled: boolean
   protected prefix: string = ''
   protected needLogFn: () => boolean
+  protected onLog?: (record: LogRecordPayload) => void
 
   constructor(opts: BaseLogOpts) {
     this.debugEnabled = opts.debug ?? false
     this.needLogFn = opts.needLog ?? (() => true)
+    this.onLog = opts.onLog
 
     if (opts.prefix) {
       this.prefix = `[${opts.prefix}] `
     }
+  }
+
+  /**
+   * 向 `onLog` 订阅者派发一条结构化记录（已拼好前缀）
+   *
+   * 受 `needLog` 控制，被抑制的日志不会派发；未配置 `onLog` 时为空操作
+   */
+  protected emitRecord(level: LogLevel, message: string, detail?: unknown): void {
+    if (!this.onLog || !this.shouldLog()) return
+
+    const record: LogRecordPayload = {
+      level,
+      message,
+      time: new Date().toISOString(),
+    }
+    if (detail !== undefined) {
+      record.detail = detail
+    }
+
+    this.onLog(record)
   }
 
   /**

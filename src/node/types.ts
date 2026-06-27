@@ -81,9 +81,6 @@ export interface NodeLogOpts extends BaseLogOpts {
   file?: FileLogOptions
 }
 
-/** 文件日志级别 */
-export type LogLevel = 'info' | 'success' | 'warn' | 'error' | 'debug' | 'log'
-
 /** 落盘格式 */
 export type FileLogFormat = 'ndjson' | 'text'
 

@@ -9,7 +9,11 @@
 
 ### Added
 
-- 引入基于 *Vitest* + *jsdom* 的测试套件，覆盖 `BrowserLogger`、`NodeLogger`、`TerminalColor`、`BaseLogger` 以及工具函数（utils）
+- **文件日志**：`NodeLogger` 新增 `file` 配置，基于可选依赖 `rotating-file-stream` 将日志写入本地文件，支持按大小 / 时间轮转、gzip 压缩与保留清理；落盘为去除 ANSI 颜色的 NDJSON / text；提供 `autoClose`（默认开启，进程自然退出自动刷新）与 `handleSignals` 选项
+- **Electron 全链路日志**：新增 `exposeLogBridge`、`forwardToMain`（浏览器入口）与 `listenElectronLogs`、`NodeLogger.writeRecord`（Node 入口），把渲染进程日志经 IPC 转发到主进程统一落盘；全程不引入 `electron`，`ipcMain` / `ipcRenderer` / `contextBridge` 由调用方注入
+- **`onLog` 订阅钩子**：`BaseLogOpts` 新增 `onLog`，每条日志产生时回调一条结构化记录（受 `needLog` 控制），可用于 IPC 转发或接入 *WebSocket* / *Sentry* 等
+- 浏览器端暴露 `debugColor` 配置（此前 debug 颜色为硬编码）
+- 引入基于 *Vitest* + *jsdom* 的测试套件，覆盖 `BrowserLogger`、`NodeLogger`、`TerminalColor`、`BaseLogger`、`FileTransport`、Electron 日志桥以及工具函数（utils）
 
 ### Changed
 

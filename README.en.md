@@ -185,6 +185,12 @@ interface BaseLogOpts {
   prefix?: string
   /** Whether logs should print; configure per environment. Recommended to let your build tool strip logs */
   needLog?: () => boolean
+  /**
+   * Per-log subscription callback, receiving a structured record (prefix already applied).
+   * Typical use is forwarding Electron renderer logs to the main process over IPC
+   * (pass `forwardToMain` directly); gated by `needLog`, so suppressed logs won't fire.
+   */
+  onLog?: (record: LogRecordPayload) => void
 }
 ```
 
@@ -387,9 +393,58 @@ File output is plain text with **ANSI colors stripped** (the terminal stays colo
 
 > ⚠️ `rotating-file-stream` only supports **size / time** rotation — rotating by **line count is not supported**.
 
+## 🖥️ Electron End-to-End Logging (renderer → main → file)
+
+Desktop apps often need to **collect user-interaction logs per page / module** and, when a user reports a bug, pull back the records for a **specific time range**. This library ships a lightweight IPC channel: renderer logs are forwarded to the main process through a preload bridge, and the main process writes them into a single file (reusing the rotation / compression above).
+
+It **never imports `electron`** — `ipcMain` / `ipcRenderer` / `contextBridge` are all injected by you, so there's no extra dependency, no electron-version coupling, and it works with `contextIsolation` on or off. Just a few lines in three places:
+
+```ts
+// 1️⃣ preload.ts — expose the send bridge to the renderer
+import { contextBridge, ipcRenderer } from 'electron'
+import { exposeLogBridge } from '@jl-org/log'
+
+exposeLogBridge(contextBridge, ipcRenderer)
+```
+
+```ts
+// 2️⃣ main.ts — receive and persist in the main process
+import { app, ipcMain } from 'electron'
+import { NodeLogger, listenElectronLogs } from '@jl-org/log/node'
+
+const logger = new NodeLogger({
+  file: { path: 'logs/app.log', size: '10M', maxFiles: 5 },
+})
+
+listenElectronLogs(ipcMain, logger)              // receive renderer logs into the same file
+app.on('before-quit', () => { void logger.close() })  // flush & close before quitting
+```
+
+```ts
+// 3️⃣ renderer — one logger per page / module via prefix
+import { BrowserLogger, forwardToMain } from '@jl-org/log'
+
+const log = new BrowserLogger({ prefix: 'UserPage', onLog: forwardToMain })
+
+log.info('clicked submit')   // shows in the browser console + lands in the main-process file
+```
+
+Output is NDJSON; each line's `time` is the **renderer-side origin time** (not the main-process write time), and `prefix` identifies the page / module — `jq` / `grep` on the time field gives you exactly the range a bug report needs:
+
+```json
+{"time":"2026-06-27T03:00:00.000Z","level":"info","msg":"[UserPage] clicked submit"}
+```
+
+**Notes**:
+
+- `onLog` is a generic subscription hook (not Electron-only) — you can also use it to forward logs to *WebSocket* / *Sentry* etc.; it's gated by `needLog`, so suppressed logs won't fire.
+- The main side validates the IPC payload shape and drops malformed data, so a misbehaving renderer can't corrupt the file.
+- `listenElectronLogs` returns an unsubscribe function — call it to detach the listener when needed.
+
 ## 🗺️ Roadmap / Notes
 
 - ✅ **Writing logs to local files**: supported, with size / time rotation, gzip compression and retention cleanup (see *File Logging* above).
+- ✅ **Electron end-to-end persistence**: renderer logs forwarded over IPC to the main process and written to a single file (see *Electron End-to-End Logging* above).
 - 📝 **Rotation by line count**: not supported by rotating-file-stream, so not provided.
 
 ## 🛠️ Local Development

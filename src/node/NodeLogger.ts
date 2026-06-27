@@ -1,6 +1,7 @@
 import type { ILogger, MethodConfig } from '@/types'
 import { BaseLogger } from '../base/BaseLogger'
 import type { ProgressConfig, NodeLogOpts, TerminalColorConfig } from './types'
+import type { LogRecordPayload } from '../shared/ipc'
 import { terminalColor } from './TerminalColor'
 import { FileTransport } from './FileTransport'
 
@@ -216,6 +217,16 @@ export class NodeLogger extends BaseLogger implements ILogger {
 
     console.log(terminalColor.cyan(`${this.prefix}${message}`))
     this.fileTransport?.write('log', `${this.prefix}${message}`)
+  }
+
+  /**
+   * 写入一条来自外部的结构化日志记录（如 Electron 渲染进程经 IPC 转发而来）
+   *
+   * 直接落盘，保留记录自带的产生时间；未启用文件日志时为空操作。
+   * 一般无需手动调用，配合 {@link listenElectronLogs} 自动接收
+   */
+  writeRecord(record: LogRecordPayload): void {
+    this.fileTransport?.write(record.level, record.message, record.detail, record.time)
   }
 
   /**

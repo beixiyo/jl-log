@@ -1,4 +1,6 @@
 export * from './base/BaseLogger'
 export * from './BrowserLogger'
+export * from './electron'
+export * from './shared/ipc'
 export * from './types'
 export * from './utils'
