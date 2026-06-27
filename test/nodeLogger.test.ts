@@ -384,7 +384,7 @@ describe('NodeLogger - 废弃方法触发 warn', () => {
     logger.img('https://example.com/a.png')
 
     expect(logSpy).toHaveBeenCalledTimes(1)
-    expect(logSpy.mock.calls[0][0]).toContain('图片打印功能仅在浏览器环境下可用')
+    expect(logSpy.mock.calls[0][0]).toContain('Image printing is only available in the browser')
   })
 })
 

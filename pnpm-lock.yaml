@@ -35,6 +35,9 @@ importers:
       rollup-plugin-clear:
         specifier: ^2.0.7
         version: 2.0.7
+      rotating-file-stream:
+        specifier: ^3.2.9
+        version: 3.2.9
       tsc-alias:
         specifier: ^1.8.8
         version: 1.8.8
@@ -886,6 +889,10 @@ packages:
     resolution: {integrity: sha512-5CaD3MPDlPKfhqzRvWXK96G6ELJfPZNb3LHiZxTHgDdC6jvwfGz2E8nY+9g1ONk4ttHsK1WaFP19Js4PSr1E3g==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
+
+  rotating-file-stream@3.2.9:
+    resolution: {integrity: sha512-i9i0KkHh12ryl4xtELg+0gyoFre2PJ9RcQQLzquWsiqygyYsrZLckrqqYrthhnJZGZb4g+KUHtcoWYVq34gaug==}
+    engines: {node: '>=14.0'}
 
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
@@ -1901,6 +1908,8 @@ snapshots:
       '@rollup/rollup-win32-ia32-msvc': 4.16.1
       '@rollup/rollup-win32-x64-msvc': 4.16.1
       fsevents: 2.3.3
+
+  rotating-file-stream@3.2.9: {}
 
   run-parallel@1.2.0:
     dependencies:

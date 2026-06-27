@@ -6,6 +6,7 @@ export function normalizeOpts(opts: LogOpts) {
     errorColor: '#F56C6C',
     warningColor: '#E6A23C',
     successColor: '#67C23A',
+    debugColor: '#909399',
     table: {
       header: {
         color: '#F2F7FF',

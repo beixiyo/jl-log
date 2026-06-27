@@ -77,4 +77,62 @@ export interface TerminalColorConfig {
 export interface NodeLogOpts extends BaseLogOpts {
   /** 颜色配置 */
   colors?: TerminalColorConfig
+  /** 文件日志配置，启用后日志会同时写入本地文件（基于可选依赖 rotating-file-stream 实现轮转） */
+  file?: FileLogOptions
+}
+
+/** 文件日志级别 */
+export type LogLevel = 'info' | 'success' | 'warn' | 'error' | 'debug' | 'log'
+
+/** 落盘格式 */
+export type FileLogFormat = 'ndjson' | 'text'
+
+/**
+ * 文件日志配置
+ *
+ * 基于可选 peer 依赖 [rotating-file-stream](https://github.com/iccicci/rotating-file-stream) 实现日志轮转
+ *
+ * 说明：rotating-file-stream 仅支持「按大小」与「按时间」轮转，不支持「按行数」轮转；
+ * 需要更精细的控制可通过 {@link FileLogOptions.rfsOptions} 透传原始配置
+ */
+export interface FileLogOptions {
+  /** 日志文件路径，相对或绝对均可，所在目录不存在时会自动创建 */
+  path: string
+  /**
+   * 落盘格式：`ndjson` 每行一个 JSON 对象（机器友好，可 tail / grep / jq）；`text` 为带时间戳的纯文本行
+   * @default 'ndjson'
+   */
+  format?: FileLogFormat
+  /** 按大小轮转，如 `'10M'`、`'500K'`、`'1G'`（单位 B / K / M / G），可与 `interval` 同时使用 */
+  size?: string
+  /** 按时间轮转，如 `'1d'`、`'12h'`、`'30m'`、`'1M'`（单位 s / m / h / d / M） */
+  interval?: string
+  /** 最多保留的「轮转后」文件数量，超出后自动删除最旧的 */
+  maxFiles?: number
+  /**
+   * 是否将轮转后的文件 gzip 压缩为 `.gz`
+   * @default false
+   */
+  compress?: boolean
+  /**
+   * 是否在进程自然退出（beforeExit）时自动刷新并关闭文件流；
+   * 信号（SIGINT/SIGTERM）与框架退出钩子（如 Electron 的 before-quit）不在此列
+   * @default true
+   */
+  autoClose?: boolean
+  /**
+   * 是否接管 `SIGINT`/`SIGTERM` 信号：收到后先刷新关闭文件流，再按惯例退出码退出进程
+   *
+   * 仅适合「自身不管理信号 / 优雅退出」的应用；若你已有信号处理或框架退出钩子
+   * （如 Electron 的 `app.on('before-quit')`），请保持关闭并在自己的钩子里调用 `close()`，
+   * 否则会与宿主的关闭流程冲突
+   * @default false
+   */
+  handleSignals?: boolean
+  /**
+   * 透传给 rotating-file-stream 的原始配置，会覆盖上面同名项，用于高度自定义
+   *
+   * 完整选项见 https://github.com/iccicci/rotating-file-stream
+   */
+  rfsOptions?: Record<string, any>
 }

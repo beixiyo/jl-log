@@ -18,6 +18,8 @@ export interface LogOpts extends BaseLogOpts {
   warningColor?: string
   /** 默认 #67C23A */
   successColor?: string
+  /** 默认 #909399 */
+  debugColor?: string
   /** 表格颜色 */
   table?: {
     /** 表头 */

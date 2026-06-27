@@ -2,6 +2,7 @@ import type { ILogger, MethodConfig } from '@/types'
 import { BaseLogger } from '../base/BaseLogger'
 import type { ProgressConfig, NodeLogOpts, TerminalColorConfig } from './types'
 import { terminalColor } from './TerminalColor'
+import { FileTransport } from './FileTransport'
 
 /**
  * Node.js 环境的日志管理类
@@ -9,6 +10,8 @@ import { terminalColor } from './TerminalColor'
  */
 export class NodeLogger extends BaseLogger implements ILogger {
   private colors: Required<TerminalColorConfig>
+  /** 文件日志传输（仅在配置了 opts.file 时创建） */
+  private fileTransport?: FileTransport
 
   /**
    * 构造函数
@@ -24,6 +27,11 @@ export class NodeLogger extends BaseLogger implements ILogger {
       warningColor: opts.colors?.warningColor || 'yellow',
       errorColor: opts.colors?.errorColor || 'red',
       debugColor: opts.colors?.debugColor || 'gray'
+    }
+
+    // 启用文件日志（基于可选 peer 依赖 rotating-file-stream）
+    if (opts.file) {
+      this.fileTransport = new FileTransport(opts.file)
     }
   }
 
@@ -49,6 +57,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.infoColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
+    this.fileTransport?.write('info', `${finalPrefix}${message}`)
   }
 
   /**
@@ -60,6 +69,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.successColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
+    this.fileTransport?.write('success', `${finalPrefix}${message}`)
   }
 
   /**
@@ -71,6 +81,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.warningColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
+    this.fileTransport?.write('warn', `${finalPrefix}${message}`)
   }
 
   /**
@@ -85,6 +96,13 @@ export class NodeLogger extends BaseLogger implements ILogger {
     if (error) {
       console.error(terminalColor.red(error instanceof Error ? error.stack || error.message : error))
     }
+    this.fileTransport?.write(
+      'error',
+      `${finalPrefix}${message}`,
+      error
+        ? (error instanceof Error ? error.stack || error.message : error)
+        : undefined
+    )
   }
 
   /**
@@ -98,6 +116,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
       const finalPrefix = this.getFinalPrefix(config)
       const colorMethod = this.getColorMethod(this.colors.debugColor)
       console.log(colorMethod(`${finalPrefix}${message}`))
+      this.fileTransport?.write('debug', `${finalPrefix}${message}`)
     }
   }
 
@@ -196,6 +215,15 @@ export class NodeLogger extends BaseLogger implements ILogger {
     if (!this.shouldLog()) return
 
     console.log(terminalColor.cyan(`${this.prefix}${message}`))
+    this.fileTransport?.write('log', `${this.prefix}${message}`)
+  }
+
+  /**
+   * 刷新并关闭文件日志流（仅在启用了文件日志时有效）
+   * 建议在进程退出前调用，避免丢失缓冲中的日志
+   */
+  async close(): Promise<void> {
+    await this.fileTransport?.close()
   }
 
   /**
@@ -206,7 +234,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     if (!this.shouldLog()) return
 
     // Node.js 环境下不支持复杂表格打印，提供简化实现
-    this.warn('复杂表格打印功能仅在浏览器环境下可用，Node.js 环境请使用 tableSimple 方法')
+    this.warn('Complex table printing is only available in the browser; use tableSimple() in Node.js')
   }
 
   /**
@@ -234,6 +262,6 @@ export class NodeLogger extends BaseLogger implements ILogger {
     if (!this.shouldLog()) return
 
     // Node.js 环境下不支持图片打印，提供空实现
-    this.warn('图片打印功能仅在浏览器环境下可用')
+    this.warn('Image printing is only available in the browser')
   }
 }

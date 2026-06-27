@@ -113,6 +113,19 @@ describe('BrowserLogger - 自定义颜色', () => {
     logger.error('y')
     expect(String(logSpy.mock.calls[1][1])).toContain('#F44336')
   })
+
+  it('debug 默认颜色 #909399 进入样式参数', () => {
+    const logger = new BrowserLogger({ debug: true })
+    logger.debug('d')
+    expect(String(logSpy.mock.calls[0][1])).toContain('#909399')
+  })
+
+  it('debug 颜色可通过 debugColor 配置', () => {
+    const logger = new BrowserLogger({ debug: true, debugColor: '#123456' })
+    logger.debug('d')
+    expect(String(logSpy.mock.calls[0][1])).toContain('#123456')
+    expect(String(logSpy.mock.calls[0][2])).toContain('#123456')
+  })
 })
 
 describe('BrowserLogger - needLog 闸门 (false 时全部静默)', () => {

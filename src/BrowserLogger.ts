@@ -80,7 +80,7 @@ export class BrowserLogger extends BaseLogger implements ILogger {
       prettyPrint(
         'Debug',
         `${finalPrefix}${message}`,
-        '#909399',
+        this.opts.debugColor,
         this.opts.needLog
       )
     }

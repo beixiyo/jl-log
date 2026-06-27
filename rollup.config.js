@@ -57,5 +57,7 @@ export default defineConfig([
       },
     ],
     plugins,
+    // rotating-file-stream 为可选 peer 依赖，通过动态 import 按需加载，不打进产物；node 内置模块同样外置
+    external: ['rotating-file-stream', /^node:/],
   },
 ])

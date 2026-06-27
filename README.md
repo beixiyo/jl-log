@@ -193,6 +193,8 @@ interface LogOpts extends BaseLogOpts {
   warningColor?: string
   /** 成功色，默认 #67C23A */
   successColor?: string
+  /** 调试色，默认 #909399 */
+  debugColor?: string
   /** 表格样式 */
   table?: {
     /** 表头 */
@@ -212,8 +214,6 @@ interface LogOpts extends BaseLogOpts {
   }
 }
 ```
-
-> ⚠️ `BrowserLogger` 的 `debug` 输出使用固定的 `#909399` 颜色，不随 `infoColor` 等配置变化
 
 ### 🖥️ NodeLogger 配置 `NodeLogOpts` / `TerminalColorConfig`
 
@@ -344,9 +344,58 @@ pnpm test:cov
 - 测试用例位于 [`test/`](./test) 目录（如 `browserLogger.test.js`、`nodeLogger.test.ts`、`TerminalColor.test.ts`）
 - [`test/browser.html`](./test/browser.html) 是一个用于手动验证浏览器效果的演示页面，可在浏览器中打开后按 F12 查看控制台输出
 
+## 📁 文件日志（写入本地）
+
+Node 端可将日志在终端输出的同时写入本地文件，并基于「可选依赖」[rotating-file-stream](https://github.com/iccicci/rotating-file-stream) 实现按 **大小 / 时间** 轮转、gzip 压缩与保留清理。
+
+> 该依赖为可选项，仅在使用文件日志时才需安装：
+>
+> ```bash
+> pnpm add rotating-file-stream
+> ```
+
+```js
+import { NodeLogger } from '@jl-org/log/node'
+
+const logger = new NodeLogger({
+  prefix: 'App',
+  file: {
+    path: 'logs/app.log',   // 目录不存在会自动创建
+    format: 'ndjson',       // 'ndjson'（默认，每行一个 JSON）或 'text'
+    size: '10M',            // 按大小轮转，单位 B / K / M / G
+    interval: '1d',         // 按时间轮转，单位 s / m / h / d / M，可与 size 同时使用
+    maxFiles: 7,            // 最多保留 7 个轮转文件，超出自动删除最旧的
+    compress: true,         // 轮转后 gzip 压缩为 .gz
+    // rfsOptions: { ... }  // 透传给 rotating-file-stream 的原始配置，用于高度自定义
+  },
+})
+
+logger.info('服务启动')                 // 终端彩色输出 + 文件 NDJSON 落盘
+logger.error('出错了', new Error('boom'))
+
+// 进程自然退出时自动刷新关闭（autoClose 默认开启）；其它退出场景见下方「退出时的刷新」
+await logger.close()
+```
+
+落盘内容为「去除 ANSI 颜色」的纯文本，终端彩色输出不受影响。默认 NDJSON 示例：
+
+```json
+{"time":"2026-06-27T03:00:00.000Z","level":"info","msg":"[App] 服务启动"}
+{"time":"2026-06-27T03:00:01.000Z","level":"error","msg":"[App] 出错了","detail":"Error: boom\n    at ..."}
+```
+
+**退出时的刷新**：
+
+- 进程**自然退出**（事件循环排空）会自动 `close()`（`autoClose`，默认开启）
+- 被**信号**打断（`SIGINT`/`SIGTERM`，如 Ctrl+C / `kill`）时 `autoClose` 不触发；可设 `handleSignals: true`，收到信号后先刷新再退出（仅当你的应用自身没有信号处理时启用，否则会与宿主关闭流程冲突）
+- **Electron** 主进程会拦截退出流程，`beforeExit` 与信号都不可靠 —— 请在 `app.on('before-quit', () => logger.close())` 里手动调用
+
+> ⚠️ `rotating-file-stream` 仅支持「按大小 / 时间」轮转，**不支持按文件行数轮转**。
+
 ## 🗺️ Roadmap / 备注
 
-- 📝 **写入本地日志文件**（日志轮转 / 自定义格式）正在评估中，属于规划/调研项，**当前版本尚未实现**，请勿在生产中依赖此能力
+- ✅ **写入本地日志文件**：已支持按大小 / 时间轮转、gzip 压缩与保留清理（见上文「文件日志」）
+- 📝 **按文件行数轮转**：rotating-file-stream 不支持，暂未提供
 
 ## 🛠️ 本地开发
 

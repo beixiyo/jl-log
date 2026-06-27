@@ -200,6 +200,8 @@ interface LogOpts extends BaseLogOpts {
   warningColor?: string
   /** Default: #67C23A */
   successColor?: string
+  /** Default: #909399 */
+  debugColor?: string
 
   /** Table style configuration */
   table?: {
@@ -337,9 +339,58 @@ pnpm test:watch    # vitest
 pnpm test:cov      # vitest run --coverage
 ```
 
+## 📁 File Logging
+
+On Node, logs can be written to a local file in addition to the terminal, with **size / time** based rotation, gzip compression and retention cleanup powered by the **optional dependency** [rotating-file-stream](https://github.com/iccicci/rotating-file-stream).
+
+> The dependency is optional — install it only when you use file logging:
+>
+> ```bash
+> pnpm add rotating-file-stream
+> ```
+
+```js
+import { NodeLogger } from '@jl-org/log/node'
+
+const logger = new NodeLogger({
+  prefix: 'App',
+  file: {
+    path: 'logs/app.log',   // the directory is created automatically
+    format: 'ndjson',       // 'ndjson' (default, one JSON per line) or 'text'
+    size: '10M',            // rotate by size: B / K / M / G
+    interval: '1d',         // rotate by time: s / m / h / d / M (can combine with size)
+    maxFiles: 7,            // keep at most 7 rotated files, oldest removed first
+    compress: true,         // gzip rotated files into .gz
+    // rfsOptions: { ... }  // raw rotating-file-stream options passthrough for full control
+  },
+})
+
+logger.info('server started')           // colored terminal output + NDJSON to file
+logger.error('oops', new Error('boom'))
+
+// auto-flushed & closed on natural process exit (autoClose, on by default); see "Exit & flushing" below
+await logger.close()
+```
+
+File output is plain text with **ANSI colors stripped** (the terminal stays colorful). Default NDJSON sample:
+
+```json
+{"time":"2026-06-27T03:00:00.000Z","level":"info","msg":"[App] server started"}
+{"time":"2026-06-27T03:00:01.000Z","level":"error","msg":"[App] oops","detail":"Error: boom\n    at ..."}
+```
+
+**Exit & flushing**:
+
+- On **natural exit** (event loop drains) it auto-`close()`s (`autoClose`, on by default).
+- On **signals** (`SIGINT`/`SIGTERM`, e.g. Ctrl+C / `kill`) `autoClose` does *not* fire; set `handleSignals: true` to flush-then-exit on a signal (only if your app has no signal handling of its own, otherwise it conflicts with the host's shutdown).
+- In **Electron** the main process intercepts shutdown — neither `beforeExit` nor signals are reliable; call `logger.close()` from `app.on('before-quit', ...)`.
+
+> ⚠️ `rotating-file-stream` only supports **size / time** rotation — rotating by **line count is not supported**.
+
 ## 🗺️ Roadmap / Notes
 
-- 📁 **Writing logs to local files** (with rotation / formatting) is currently **under evaluation** — it is *not* implemented yet.
+- ✅ **Writing logs to local files**: supported, with size / time rotation, gzip compression and retention cleanup (see *File Logging* above).
+- 📝 **Rotation by line count**: not supported by rotating-file-stream, so not provided.
 
 ## 🛠️ Local Development
 

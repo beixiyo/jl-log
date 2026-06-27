@@ -1,4 +1,5 @@
 export * from './constans'
+export * from './FileTransport'
 export * from './NodeLogger'
 export * from './TerminalColor'
 export * from './types'
