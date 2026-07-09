@@ -1,7 +1,7 @@
 /**
  * Electron 主进程日志接收（Node 入口）
  *
- * 监听渲染进程经 IPC 发来的日志记录，交给 {@link NodeLogger} 统一落盘
+ * 监听渲染进程经 IPC 发来的日志记录，交给 {@link NodeLogger} 统一写入传输目标
  * 与渲染侧一样**不引入 electron**——`ipcMain` 由调用方注入，保持零依赖与可单测
  */
 
@@ -10,10 +10,10 @@ import type { LogRecordPayload } from '../shared/ipc'
 import type { NodeLogger } from './NodeLogger'
 
 /**
- * 在**主进程**中调用，监听渲染进程转发来的日志并写入 `logger` 的文件
+ * 在**主进程**中调用，监听渲染进程转发来的日志并写入 `logger` 的传输目标
  *
  * @param ipcMain electron 的 `ipcMain`
- * @param logger 已配置 `file` 的 {@link NodeLogger} 实例
+ * @param logger 已配置 `file` 或 `transports` 的 {@link NodeLogger} 实例
  * @returns 取消监听的函数
  *
  * @example
@@ -43,7 +43,7 @@ export function listenElectronLogs(
   return () => ipcMain.removeListener(JL_LOG_IPC_CHANNEL, handler)
 }
 
-/** 校验跨进程传来的负载，避免渲染进程发来脏数据写穿文件 */
+/** 校验跨进程传来的负载，避免渲染进程发来脏数据写穿存储 */
 function isLogRecord(value: unknown): value is LogRecordPayload {
   return (
     typeof value === 'object'

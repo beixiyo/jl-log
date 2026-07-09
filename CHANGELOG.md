@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-07-09
+
+### Added
+
+- **稳定存储接口**：新增两端共享的 `LogTransport` / `transports`，浏览器和 Node 均可接入自定义日志存储（如 IndexedDB、数据库、HTTP、Sentry）；`NodeLogger` 的 `file` 配置改为内置 `FileTransport` 快捷方式，可与自定义 transport 并用
+
+### Changed
+
+- **文件日志按需加载**：`FileTransport` 改为首次真实写入时才动态加载 `rotating-file-stream` 并创建文件流；仅构造 `NodeLogger({ file })` 或无写入时 `close()` 不再加载依赖或创建空日志文件
+
 ## [2.1.0] - 2026-06-27
 
 ### Added

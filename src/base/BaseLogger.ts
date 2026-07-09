@@ -1,5 +1,6 @@
 import type { BaseLogOpts, MethodConfig } from '../types'
-import type { LogLevel, LogRecordPayload } from '../shared/ipc'
+import type { LogLevel, LogRecordPayload, LogTransport } from '../shared/ipc'
+import { createLogRecord } from '../shared/record'
 
 /**
  * 基础日志类，包含两端通用的逻辑
@@ -9,11 +10,13 @@ export abstract class BaseLogger {
   protected prefix: string = ''
   protected needLogFn: () => boolean
   protected onLog?: (record: LogRecordPayload) => void
+  protected transports: LogTransport[]
 
   constructor(opts: BaseLogOpts) {
     this.debugEnabled = opts.debug ?? false
     this.needLogFn = opts.needLog ?? (() => true)
     this.onLog = opts.onLog
+    this.transports = opts.transports ?? []
 
     if (opts.prefix) {
       this.prefix = `[${opts.prefix}] `
@@ -21,26 +24,50 @@ export abstract class BaseLogger {
   }
 
   /**
-   * 向 `onLog` 订阅者派发一条结构化记录（已拼好前缀）
+   * 向 `onLog` 订阅者和 `transports` 派发一条结构化记录（已拼好前缀）
    *
-   * 受 `needLog` 控制，被抑制的日志不会派发；未配置 `onLog` 时为空操作
+   * 受 `needLog` 控制，被抑制的日志不会派发
    */
   protected emitRecord(level: LogLevel, message: string, detail?: unknown, meta?: Record<string, unknown>): void {
-    if (!this.onLog || !this.shouldLog()) return
+    if (!this.shouldLog()) return
 
-    const record: LogRecordPayload = {
-      level,
-      message,
-      time: new Date().toISOString(),
-    }
-    if (detail !== undefined) {
-      record.detail = detail
-    }
-    if (meta !== undefined) {
-      record.meta = meta
-    }
+    this.dispatchNewRecord(level, message, detail, meta)
+  }
 
-    this.onLog(record)
+  /** 创建并派发一条结构化日志记录，不经过 `needLog` 闸门 */
+  protected dispatchNewRecord(level: LogLevel, message: string, detail?: unknown, meta?: Record<string, unknown>): void {
+    this.dispatchRecord(createLogRecord(level, message, {
+      detail,
+      meta,
+    }))
+  }
+
+  /** 直接派发一条外部记录，不重新计算时间或经过 `needLog` 闸门 */
+  protected dispatchRecord(record: LogRecordPayload): void {
+    this.onLog?.(record)
+
+    for (const transport of this.transports) {
+      try {
+        const result = transport.write(record)
+        if (isPromiseLike(result)) {
+          void result.catch((err) => {
+            console.error('[@jl-org/log] Log transport error:', err)
+          })
+        }
+      }
+      catch (err) {
+        console.error('[@jl-org/log] Log transport error:', err)
+      }
+    }
+  }
+
+  /** 刷新并关闭所有传输目标 */
+  protected async closeTransports(): Promise<void> {
+    await Promise.all(
+      this.transports.map(async (transport) => {
+        await transport.close?.()
+      })
+    )
   }
 
   /**
@@ -69,4 +96,8 @@ export abstract class BaseLogger {
     }
     return this.debugEnabled
   }
+}
+
+function isPromiseLike(value: unknown): value is Promise<void> {
+  return Boolean(value && typeof (value as Promise<void>).then === 'function')
 }

@@ -11,7 +11,8 @@
 
 import { basename, dirname } from 'node:path'
 import type { FileLogFormat, FileLogFormatFn, FileLogOptions } from './types'
-import type { LogLevel } from '../shared/ipc'
+import type { LogLevel, LogRecordPayload, LogTransport } from '../shared/ipc'
+import { createLogRecord } from '../shared/record'
 
 /** 可选接管的终止信号 */
 const SIGNALS = ['SIGINT', 'SIGTERM'] as const
@@ -24,19 +25,18 @@ const SIGNAL_EXIT_CODE: Record<Signal, number> = {
   SIGTERM: 143,
 }
 
-export class FileTransport {
+export class FileTransport implements LogTransport {
   private readonly opts: FileLogOptions & { format: FileLogFormat | FileLogFormatFn }
   private stream: RotatingStream | null = null
   /** rfs 就绪前先缓存日志行，就绪后回放 */
   private buffer: string[] = []
   private closed = false
   private closePromise: Promise<void> | null = null
-  /** 异步初始化（动态加载 rfs + 建流）完成的 Promise */
-  private readonly ready: Promise<void>
+  /** 首次写入时异步初始化（动态加载 rfs + 建流）完成的 Promise */
+  private ready: Promise<void> | null = null
 
   constructor(opts: FileLogOptions) {
     this.opts = { format: 'jsonl', autoClose: true, handleSignals: false, ...opts }
-    this.ready = this.init()
 
     // 默认监听进程自然退出（beforeExit），自动刷新关闭，无需手动调用 close()
     if (this.opts.autoClose) {
@@ -64,21 +64,32 @@ export class FileTransport {
   }
 
   /**
-   * 写入一条日志（message 应为已去除 ANSI 颜色的纯文本）
+   * 写入一条日志。传 record 时使用标准 transport 接口；
+   * 传 level/message 时保持旧版调用兼容
    *
    * @param opts.time 记录产生时间（ISO 字符串），不传则用当前时间；跨进程转发时传入产生端时间
    * @param opts.detail 附加详情（错误堆栈、可序列化对象等）
    * @param opts.meta 本条日志的结构化字段，与构造期 meta 合并（本条优先）
    */
-  write(level: LogLevel, message: string, opts: WriteOptions = {}): void {
+  write(record: LogRecordPayload): void
+  write(level: LogLevel, message: string, opts?: FileTransportWriteOptions): void
+  write(
+    recordOrLevel: LogRecordPayload | LogLevel,
+    message = '',
+    opts: FileTransportWriteOptions = {}
+  ): void {
     if (this.closed) return
 
-    const line = this.format(level, message, opts)
+    const record = typeof recordOrLevel === 'string'
+      ? createLogRecord(recordOrLevel, message, opts)
+      : recordOrLevel
+    const line = this.format(record)
     if (this.stream) {
       this.stream.write(line)
     }
     else {
       this.buffer.push(line)
+      void this.ensureReady()
     }
   }
 
@@ -101,7 +112,9 @@ export class FileTransport {
     for (const signal of SIGNALS) {
       process.removeListener(signal, this.handleSignal)
     }
-    await this.ready
+    if (this.ready) {
+      await this.ready
+    }
 
     const stream = this.stream
     if (!stream) return
@@ -109,6 +122,14 @@ export class FileTransport {
     await new Promise<void>((resolve) => {
       stream.end(() => resolve())
     })
+  }
+
+  private ensureReady(): Promise<void> {
+    if (!this.ready) {
+      this.ready = this.init()
+    }
+
+    return this.ready
   }
 
   private async init(): Promise<void> {
@@ -163,10 +184,10 @@ export class FileTransport {
     }
   }
 
-  private format(level: LogLevel, message: string, opts: WriteOptions): string {
-    const { detail, time, meta: callMeta } = opts
+  private format(record: LogRecordPayload): string {
+    const { level, message, detail, meta: callMeta } = record
 
-    const date = time ? new Date(time) : new Date()
+    const date = new Date(record.time)
 
     // 构造期 meta（环境默认）与本条 meta 合并，同名时本条优先
     const ambient = typeof this.opts.meta === 'function'
@@ -196,22 +217,22 @@ export class FileTransport {
     }
 
     // jsonl：meta 先铺底，内置字段后写，保证 time / level / msg 不被 meta 覆盖
-    const record: LogRecord = {
+    const jsonRecord: LogRecord = {
       ...meta,
       time: ts,
       level,
       msg: message,
     }
     if (detail !== undefined) {
-      record.detail = detail
+      jsonRecord.detail = detail
     }
 
-    return `${JSON.stringify(record)}\n`
+    return `${JSON.stringify(jsonRecord)}\n`
   }
 }
 
 /** 单条写入的可选项 */
-interface WriteOptions {
+export interface FileTransportWriteOptions {
   /** 附加详情（错误堆栈、可序列化对象等） */
   detail?: unknown
   /** 记录产生时间（ISO 字符串），跨进程转发时为产生端时间 */

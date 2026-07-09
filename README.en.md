@@ -191,6 +191,18 @@ interface BaseLogOpts {
    * (pass `forwardToMain` directly); gated by `needLog`, so suppressed logs won't fire.
    */
   onLog?: (record: LogRecordPayload) => void
+  /**
+   * Structured log write targets, e.g. files, IndexedDB, HTTP or Sentry.
+   * Gated by `needLog`, so suppressed logs are not written.
+   */
+  transports?: LogTransport[]
+}
+
+interface LogTransport {
+  /** Write one structured log record */
+  write(record: LogRecordPayload): void | Promise<void>
+  /** Flush and release resources */
+  close?(): void | Promise<void>
 }
 ```
 
@@ -235,6 +247,8 @@ interface LogOpts extends BaseLogOpts {
 interface NodeLogOpts extends BaseLogOpts {
   /** Color configuration */
   colors?: TerminalColorConfig
+  /** File logging config, internally wrapped as the built-in FileTransport */
+  file?: FileLogOptions
 }
 
 interface TerminalColorConfig {
@@ -300,6 +314,8 @@ interface ILogger {
   img?(url: string, scale?: number): void
   /** Print a table */
   table?<T extends object>(data: T[]): void
+  /** Flush and close underlying transports */
+  close?(): Promise<void>
 }
 ```
 
@@ -311,6 +327,7 @@ interface ILogger {
 | **Debug Logging** | ✅ | ✅ | `debug` method with on/off control |
 | **Prefix Support** | ✅ | ✅ | Unified custom prefix support |
 | **Method-level Config** | ✅ | ✅ | Temporarily override `prefix`, `debug`, etc. |
+| **Structured storage extension** | ✅ | ✅ | `transports` can write to IndexedDB / files / HTTP etc. |
 | **Error Stack** | ✅ | ✅ | Displays `Error` objects / stacks |
 | **Table Printing** | ✅ Full | ⚠️ Simple | Full styled table in browser; use `tableSimple` in Node.js |
 | **Image Printing** | ✅ | ❌ Warns | Browser only; Node.js prints a warning |
@@ -351,9 +368,37 @@ pnpm test:watch    # vitest
 pnpm test:cov      # vitest run --coverage
 ```
 
+## 🔌 Custom Log Storage `transports`
+
+`transports` is the stable extension interface shared by browser and Node loggers. Every log is written as a `LogRecordPayload`, so you can persist browser logs to *IndexedDB*, write Node logs to a database, upload records over HTTP, or integrate with *Sentry*. `onLog` remains available as a lightweight subscription / forwarding hook.
+
+```ts
+import { BrowserLogger, type LogTransport } from '@jl-org/log'
+
+const indexedDbTransport: LogTransport = {
+  async write(record) {
+    // Plug in your own IndexedDB wrapper here
+    await saveLogRecord(record)
+  },
+  async close() {
+    await flushPendingLogs()
+  },
+}
+
+const logger = new BrowserLogger({
+  prefix: 'UserPage',
+  transports: [indexedDbTransport],
+})
+
+logger.info('clicked submit', { meta: { buttonId: 'submit' } })
+await logger.close()
+```
+
+Node accepts custom transports in the same way. The `file` option is only a shortcut for the built-in file transport and can be combined with custom transports.
+
 ## 📁 File Logging
 
-On Node, logs can be written to a local file in addition to the terminal, with **size / time** based rotation, gzip compression and retention cleanup powered by the **optional dependency** [rotating-file-stream](https://github.com/iccicci/rotating-file-stream).
+On Node, logs can be written to a local file in addition to the terminal. The built-in file transport gets rotation from the **optional dependency** [rotating-file-stream](https://github.com/iccicci/rotating-file-stream): **size / time** based rotation, gzip compression and retention cleanup. This package does not implement its own rotation algorithm.
 
 > The dependency is optional — install it only when you use file logging:
 >
@@ -433,9 +478,9 @@ meta: () => ({ localTime: new Date().toLocaleString(), tz: Intl.DateTimeFormat()
 
 > ⚠️ `rotating-file-stream` only supports **size / time** rotation — rotating by **line count is not supported**.
 
-## 🖥️ Electron End-to-End Logging (renderer → main → file)
+## 🖥️ Electron End-to-End Logging (renderer → main → storage)
 
-Desktop apps often need to **collect user-interaction logs per page / module** and, when a user reports a bug, pull back the records for a **specific time range**. This library ships a lightweight IPC channel: renderer logs are forwarded to the main process through a preload bridge, and the main process writes them into a single file (reusing the rotation / compression above).
+Desktop apps often need to **collect user-interaction logs per page / module** and, when a user reports a bug, pull back the records for a **specific time range**. This library ships a lightweight IPC channel: renderer logs are forwarded to the main process through a preload bridge, and the main process writes them to a file or any other transport (when using `file`, it reuses the rotation / compression above).
 
 It **never imports `electron`** — `ipcMain` / `ipcRenderer` / `contextBridge` are all injected by you, so there's no extra dependency, no electron-version coupling, and it works with `contextIsolation` on or off. Just a few lines in three places:
 
@@ -477,6 +522,6 @@ Output is jsonl; each line's `time` is the **renderer-side origin time** (not th
 
 **Notes**:
 
-- `onLog` is a generic subscription hook (not Electron-only) — you can also use it to forward logs to *WebSocket* / *Sentry* etc.; it's gated by `needLog`, so suppressed logs won't fire.
-- The main side validates the IPC payload shape and drops malformed data, so a misbehaving renderer can't corrupt the file.
+- `onLog` is a generic subscription hook (not Electron-only), useful for lightweight forwarding; prefer `LogTransport` for stable persistence and closeable resources.
+- The main side validates the IPC payload shape and drops malformed data, so a misbehaving renderer can't corrupt storage.
 - `listenElectronLogs` returns an unsubscribe function — call it to detach the listener when needed.

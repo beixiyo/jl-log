@@ -1,7 +1,7 @@
 import type { ILogger, MethodConfig } from '@/types'
 import { BaseLogger } from '../base/BaseLogger'
 import type { ProgressConfig, NodeLogOpts, TerminalColorConfig } from './types'
-import type { LogRecordPayload } from '../shared/ipc'
+import type { LogRecordPayload, LogTransport } from '../shared/ipc'
 import { terminalColor } from './TerminalColor'
 import { FileTransport } from './FileTransport'
 
@@ -11,15 +11,16 @@ import { FileTransport } from './FileTransport'
  */
 export class NodeLogger extends BaseLogger implements ILogger {
   private colors: Required<TerminalColorConfig>
-  /** 文件日志传输（仅在配置了 opts.file 时创建） */
-  private fileTransport?: FileTransport
 
   /**
    * 构造函数
    * @param opts 配置选项
    */
   constructor(opts: NodeLogOpts) {
-    super(opts)
+    super({
+      ...opts,
+      transports: createNodeTransports(opts),
+    })
 
     // 设置默认颜色配置
     this.colors = {
@@ -28,11 +29,6 @@ export class NodeLogger extends BaseLogger implements ILogger {
       warningColor: opts.colors?.warningColor || 'yellow',
       errorColor: opts.colors?.errorColor || 'red',
       debugColor: opts.colors?.debugColor || 'gray'
-    }
-
-    // 启用文件日志（基于可选 peer 依赖 rotating-file-stream）
-    if (opts.file) {
-      this.fileTransport = new FileTransport(opts.file)
     }
   }
 
@@ -58,7 +54,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.infoColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
-    this.fileTransport?.write('info', `${finalPrefix}${message}`, { meta: config?.meta })
+    this.dispatchNewRecord('info', `${finalPrefix}${message}`, undefined, config?.meta)
   }
 
   /**
@@ -70,7 +66,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.successColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
-    this.fileTransport?.write('success', `${finalPrefix}${message}`, { meta: config?.meta })
+    this.dispatchNewRecord('success', `${finalPrefix}${message}`, undefined, config?.meta)
   }
 
   /**
@@ -82,7 +78,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
     const finalPrefix = this.getFinalPrefix(config)
     const colorMethod = this.getColorMethod(this.colors.warningColor)
     console.log(colorMethod(`${finalPrefix}${message}`))
-    this.fileTransport?.write('warn', `${finalPrefix}${message}`, { meta: config?.meta })
+    this.dispatchNewRecord('warn', `${finalPrefix}${message}`, undefined, config?.meta)
   }
 
   /**
@@ -97,15 +93,13 @@ export class NodeLogger extends BaseLogger implements ILogger {
     if (error) {
       console.error(terminalColor.red(error instanceof Error ? error.stack || error.message : error))
     }
-    this.fileTransport?.write(
+    this.dispatchNewRecord(
       'error',
       `${finalPrefix}${message}`,
-      {
-        detail: error
-          ? (error instanceof Error ? error.stack || error.message : error)
-          : undefined,
-        meta: config?.meta,
-      }
+      error
+        ? (error instanceof Error ? error.stack || error.message : error)
+        : undefined,
+      config?.meta
     )
   }
 
@@ -120,7 +114,7 @@ export class NodeLogger extends BaseLogger implements ILogger {
       const finalPrefix = this.getFinalPrefix(config)
       const colorMethod = this.getColorMethod(this.colors.debugColor)
       console.log(colorMethod(`${finalPrefix}${message}`))
-      this.fileTransport?.write('debug', `${finalPrefix}${message}`, { meta: config?.meta })
+      this.dispatchNewRecord('debug', `${finalPrefix}${message}`, undefined, config?.meta)
     }
   }
 
@@ -219,36 +213,32 @@ export class NodeLogger extends BaseLogger implements ILogger {
     if (!this.shouldLog()) return
 
     console.log(terminalColor.cyan(`${this.prefix}${message}`))
-    this.fileTransport?.write('log', `${this.prefix}${message}`)
+    this.dispatchNewRecord('log', `${this.prefix}${message}`)
   }
 
   /**
    * 写入一条来自外部的结构化日志记录（如 Electron 渲染进程经 IPC 转发而来）
    *
-   * 直接落盘，保留记录自带的产生时间与 meta 字段；未启用文件日志时为空操作。
-   * 一般无需手动调用，配合 {@link listenElectronLogs} 自动接收
+   * 直接写入所有传输目标，保留记录自带的产生时间与 meta 字段。
+   * 一般无需手动调用，配合 {@link listenElectronLogs} 自动接收。
    */
   writeRecord(record: LogRecordPayload): void {
-    this.fileTransport?.write(record.level, record.message, {
-      detail: record.detail,
-      time: record.time,
-      meta: record.meta,
-    })
+    this.dispatchRecord(record)
   }
 
   /**
-   * 刷新并关闭文件日志流（仅在启用了文件日志时有效）
+   * 刷新并关闭日志传输目标
    * 建议在进程退出前调用，避免丢失缓冲中的日志
    */
   async close(): Promise<void> {
-    await this.fileTransport?.close()
+    await this.closeTransports()
   }
 
   /**
    * 打印表格形式的数据
    * @deprecated 浏览器环境下的表格打印功能，Node.js 环境下不支持
    */
-  table<T extends object>(data: T[]) {
+  table<T extends object>(_data: T[]) {
     if (!this.shouldLog()) return
 
     // Node.js 环境下不支持复杂表格打印，提供简化实现
@@ -282,4 +272,13 @@ export class NodeLogger extends BaseLogger implements ILogger {
     // Node.js 环境下不支持图片打印，提供空实现
     this.warn('Image printing is only available in the browser')
   }
+}
+
+function createNodeTransports(opts: NodeLogOpts): LogTransport[] {
+  const transports = [...(opts.transports ?? [])]
+  if (opts.file) {
+    transports.push(new FileTransport(opts.file))
+  }
+
+  return transports
 }

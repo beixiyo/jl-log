@@ -1,4 +1,4 @@
-import type { LogRecordPayload } from '../shared/ipc'
+import type { LogRecordPayload, LogTransport } from '../shared/ipc'
 
 /** 基础日志配置 */
 export interface BaseLogOpts {
@@ -15,6 +15,15 @@ export interface BaseLogOpts {
    * 可直接传入 {@link forwardToMain}；受 `needLog` 控制，被抑制的日志不会触发
    */
   onLog?: (record: LogRecordPayload) => void
+  /**
+   * 结构化日志写入目标
+   *
+   * 可接入自定义文件、IndexedDB、HTTP、Sentry 等存储 / 转发后端；
+   * 与 `onLog` 一样受 `needLog` 控制，被抑制的日志不会写入
+   *
+   * @default undefined
+   */
+  transports?: LogTransport[]
 }
 
 /** 浏览器环境日志配置 */
@@ -79,4 +88,6 @@ export interface ILogger {
   img?(url: string, scale?: number): void
   /** 打印表格数据 */
   table?<T extends object>(data: T[]): void
+  /** 刷新并关闭底层日志传输目标 */
+  close?(): Promise<void>
 }

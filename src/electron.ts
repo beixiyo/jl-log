@@ -1,14 +1,14 @@
 /**
  * Electron 渲染侧日志桥接（浏览器入口）
  *
- * 把渲染进程的日志经 IPC 转发到主进程统一落盘，全程**不引入 electron**——
+ * 把渲染进程的日志经 IPC 转发到主进程统一写入传输目标，全程**不引入 electron**——
  * `contextBridge` / `ipcRenderer` 由调用方注入，因此既不增加依赖，也兼容
  * `contextIsolation` 开/关两种模式
  *
  * 三步接线：
  * 1. preload 里调用 {@link exposeLogBridge}，把发送通道安全暴露到渲染进程
  * 2. 渲染进程用 `new BrowserLogger({ onLog: forwardToMain })`
- * 3. 主进程用 `listenElectronLogs(ipcMain, logger)` 接收并落盘（见 `@jl-org/log/node`）
+ * 3. 主进程用 `listenElectronLogs(ipcMain, logger)` 接收并写入 `file` 或 `transports`（见 `@jl-org/log/node`）
  */
 
 import { JL_LOG_BRIDGE_KEY, JL_LOG_IPC_CHANNEL } from './shared/ipc'
@@ -51,7 +51,7 @@ export function exposeLogBridge(
  * import { BrowserLogger, forwardToMain } from '@jl-org/log'
  *
  * const logger = new BrowserLogger({ prefix: 'UserPage', onLog: forwardToMain })
- * logger.info('clicked submit')   // 控制台打印 + 转发到主进程落盘
+ * logger.info('clicked submit')   // 控制台打印 + 转发到主进程存储
  * ```
  */
 export function forwardToMain(record: LogRecordPayload): void {

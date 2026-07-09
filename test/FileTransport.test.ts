@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { NodeLogger } from '@/node'
+import { FileTransport, NodeLogger } from '@/node'
 
 /** ANSI ESC 转义起始字符 */
 const ESC = String.fromCharCode(27)
@@ -24,6 +24,36 @@ afterEach(async () => {
 })
 
 describe('NodeLogger 文件日志（rotating-file-stream）', () => {
+  it('FileTransport 无写入时 close 不创建文件', async () => {
+    const file = join(dir, 'app.log')
+    const transport = new FileTransport({ path: file })
+
+    await transport.close()
+
+    expect(existsSync(file)).toBe(false)
+  })
+
+  it('FileTransport 实现标准 write(record) 接口', async () => {
+    const file = join(dir, 'app.log')
+    const transport = new FileTransport({ path: file })
+
+    transport.write({
+      level: 'info',
+      message: 'direct',
+      time: '2026-06-27T03:00:00.000Z',
+      meta: { source: 'custom' },
+    })
+    await transport.close()
+
+    const rec = JSON.parse((await readFile(file, 'utf8')).trim())
+    expect(rec).toMatchObject({
+      time: '2026-06-27T03:00:00.000Z',
+      level: 'info',
+      msg: 'direct',
+      source: 'custom',
+    })
+  })
+
   it('默认以 jsonl 写入，每行一个 JSON 记录', async () => {
     const file = join(dir, 'app.log')
     const logger = new NodeLogger({ file: { path: file } })

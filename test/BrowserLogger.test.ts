@@ -93,6 +93,49 @@ describe('BrowserLogger - 基础日志方法', () => {
   })
 })
 
+describe('BrowserLogger - transports', () => {
+  it('把浏览器日志写入自定义 transport，可用于 IndexedDB 等存储', () => {
+    const write = vi.fn()
+    const logger = new BrowserLogger({
+      prefix: 'Page',
+      transports: [{ write }],
+    })
+
+    logger.info('clicked', { meta: { buttonId: 'save' } })
+
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write.mock.calls[0][0]).toMatchObject({
+      level: 'info',
+      message: '[Page] clicked',
+      meta: { buttonId: 'save' },
+    })
+    expect(typeof write.mock.calls[0][0].time).toBe('string')
+  })
+
+  it('needLog:false 时不会写入 transport', () => {
+    const write = vi.fn()
+    const logger = new BrowserLogger({
+      needLog: () => false,
+      transports: [{ write }],
+    })
+
+    logger.info('hidden')
+
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('close() 会关闭 transport', async () => {
+    const close = vi.fn()
+    const logger = new BrowserLogger({
+      transports: [{ write: vi.fn(), close }],
+    })
+
+    await logger.close()
+
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('BrowserLogger - 自定义颜色', () => {
   it('默认颜色会进入样式参数', () => {
     const logger = new BrowserLogger()

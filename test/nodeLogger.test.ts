@@ -84,6 +84,86 @@ describe('NodeLogger - 基础输出', () => {
   })
 })
 
+describe('NodeLogger - transports', () => {
+  it('把 Node 日志写入自定义 transport', () => {
+    const write = vi.fn()
+    const logger = new NodeLogger({
+      prefix: 'Server',
+      transports: [{ write }],
+    })
+
+    logger.warn('slow query', { meta: { queryId: 'q1' } })
+
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write.mock.calls[0][0]).toMatchObject({
+      level: 'warn',
+      message: '[Server] slow query',
+      meta: { queryId: 'q1' },
+    })
+    expect(typeof write.mock.calls[0][0].time).toBe('string')
+  })
+
+  it('error 写入 transport 时保留 detail', () => {
+    const write = vi.fn()
+    const logger = new NodeLogger({ transports: [{ write }] })
+    const err = new Error('failed')
+    err.stack = 'Error: failed\n    at test'
+
+    logger.error('job failed', err)
+
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write.mock.calls[0][0]).toMatchObject({
+      level: 'error',
+      message: 'job failed',
+      detail: err.stack,
+    })
+  })
+
+  it('needLog:false 时不会写入 transport', () => {
+    const write = vi.fn()
+    const logger = new NodeLogger({
+      needLog: () => false,
+      transports: [{ write }],
+    })
+
+    logger.info('hidden')
+
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('writeRecord 会把外部记录直接写入 transport', () => {
+    const write = vi.fn()
+    const logger = new NodeLogger({ transports: [{ write }] })
+    const record = {
+      level: 'info' as const,
+      message: '[Renderer] clicked',
+      time: '2026-06-27T03:00:00.000Z',
+      meta: { page: 'Home' },
+    }
+
+    logger.writeRecord(record)
+
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write.mock.calls[0][0]).toBe(record)
+  })
+
+  it('close() 会关闭所有自定义 transport', async () => {
+    const closeA = vi.fn()
+    const closeB = vi.fn()
+    const logger = new NodeLogger({
+      transports: [
+        { write: vi.fn(), close: closeA },
+        { write: vi.fn(), close: closeB },
+      ],
+    })
+
+    await logger.close()
+
+    expect(closeA).toHaveBeenCalledTimes(1)
+    expect(closeB).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('NodeLogger - needLog 门控', () => {
   it('needLog() 返回 false 时所有方法都不打印任何内容', () => {
     const logger = new NodeLogger({ needLog: () => false, debug: true, prefix: 'P' })

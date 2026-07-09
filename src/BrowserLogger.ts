@@ -171,4 +171,11 @@ export class BrowserLogger extends BaseLogger implements ILogger {
     }
   }
 
+  /**
+   * 刷新并关闭日志传输目标
+   */
+  async close(): Promise<void> {
+    await this.closeTransports()
+  }
+
 }
