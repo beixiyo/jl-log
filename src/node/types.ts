@@ -179,6 +179,18 @@ export interface FileLogOptions {
    */
   handleSignals?: boolean
   /**
+   * 文件流就绪（异步加载 rfs + 建流）前内存缓冲的行数上限（最小 1），
+   * 超出后丢最旧，就绪回放时会补一条 warn 说明丢弃行数
+   * @default 5000
+   */
+  maxBufferedLines?: number
+  /**
+   * 背压（底层 write 返回 false）期间溢出队列的行数上限（最小 1），
+   * 超出后丢最旧，'drain' 冲刷时会补一条 warn 说明丢弃行数
+   * @default 5000
+   */
+  maxOverflowLines?: number
+  /**
    * 透传给 rotating-file-stream 的原始配置，会覆盖上面同名项，用于高度自定义
    *
    * 完整选项见 https://github.com/iccicci/rotating-file-stream

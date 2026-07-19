@@ -25,18 +25,40 @@ const SIGNAL_EXIT_CODE: Record<Signal, number> = {
   SIGTERM: 143,
 }
 
+/** rfs 就绪前缓冲的行数上限默认值（防 init 迟迟不完成时 buffer 无界增长），可经 `maxBufferedLines` 配置 */
+const DEFAULT_MAX_BUFFERED_LINES = 5000
+
+/** 背压（write 返回 false）期间溢出队列的行数上限默认值，可经 `maxOverflowLines` 配置 */
+const DEFAULT_MAX_OVERFLOW_LINES = 5000
+
 export class FileTransport implements LogTransport {
   private readonly opts: FileLogOptions & { format: FileLogFormat | FileLogFormatFn }
   private stream: RotatingStream | null = null
   /** rfs 就绪前先缓存日志行，就绪后回放 */
   private buffer: string[] = []
+  /** 就绪前因缓冲封顶被丢弃的行数，就绪回放时打一条 warn */
+  private droppedBufferLines = 0
+  /** init 失败（rfs 缺失 / 建流抛错）后置位：停止缓冲，后续日志直接丢弃 */
+  private initFailed = false
+  /** 流是否可直写；write() 返回 false（背压）后置 false，'drain' 时恢复 */
+  private writable = true
+  /** 背压期间的有界溢出队列，'drain' 时冲刷回流 */
+  private overflow: string[] = []
+  /** 背压期间因溢出队列封顶被丢弃的行数，冲刷时打一条 warn */
+  private droppedOverflowLines = 0
   private closed = false
   private closePromise: Promise<void> | null = null
   /** 首次写入时异步初始化（动态加载 rfs + 建流）完成的 Promise */
   private ready: Promise<void> | null = null
+  /** 就绪前缓冲行数上限（构造期从 `maxBufferedLines` 解析，最小 1） */
+  private readonly maxBufferedLines: number
+  /** 背压溢出队列行数上限（构造期从 `maxOverflowLines` 解析，最小 1） */
+  private readonly maxOverflowLines: number
 
   constructor(opts: FileLogOptions) {
     this.opts = { format: 'jsonl', autoClose: true, handleSignals: false, ...opts }
+    this.maxBufferedLines = Math.max(1, Math.floor(opts.maxBufferedLines ?? DEFAULT_MAX_BUFFERED_LINES))
+    this.maxOverflowLines = Math.max(1, Math.floor(opts.maxOverflowLines ?? DEFAULT_MAX_OVERFLOW_LINES))
 
     // 默认监听进程自然退出（beforeExit），自动刷新关闭，无需手动调用 close()
     if (this.opts.autoClose) {
@@ -78,18 +100,65 @@ export class FileTransport implements LogTransport {
     message = '',
     opts: FileTransportWriteOptions = {}
   ): void {
-    if (this.closed) return
+    if (this.closed || this.initFailed) return
 
     const record = typeof recordOrLevel === 'string'
       ? createLogRecord(recordOrLevel, message, opts)
       : recordOrLevel
     const line = this.format(record)
     if (this.stream) {
-      this.stream.write(line)
+      this.writeToStream(line)
     }
     else {
+      // 就绪前缓冲封顶：超出丢最旧，恢复时统一补一条 warn
+      if (this.buffer.length >= this.maxBufferedLines) {
+        this.buffer.shift()
+        this.droppedBufferLines++
+      }
       this.buffer.push(line)
       void this.ensureReady()
+    }
+  }
+
+  /** 背压感知的写入：不可写时进有界溢出队列，等 'drain' 冲刷 */
+  private writeToStream(line: string): void {
+    const stream = this.stream
+    if (!stream) return
+
+    if (!this.writable) {
+      if (this.overflow.length >= this.maxOverflowLines) {
+        this.overflow.shift()
+        this.droppedOverflowLines++
+      }
+      this.overflow.push(line)
+      return
+    }
+
+    if (!stream.write(line)) {
+      this.writable = false
+    }
+  }
+
+  /** 'drain' 后冲刷溢出队列；期间再遇背压则停下等待下一次 'drain' */
+  private flushOverflow(stream: RotatingStream): void {
+    this.writable = true
+
+    if (this.droppedOverflowLines > 0) {
+      const dropped = this.droppedOverflowLines
+      this.droppedOverflowLines = 0
+      // 被丢弃的是队列里最旧的行，warn 放队首保持时序
+      this.overflow.unshift(this.format(createLogRecord(
+        'warn',
+        `[@jl-org/log] Dropped ${dropped} log lines under file stream backpressure`
+      )))
+    }
+
+    while (this.overflow.length) {
+      const line = this.overflow.shift()!
+      if (!stream.write(line)) {
+        this.writable = false
+        return
+      }
     }
   }
 
@@ -119,6 +188,20 @@ export class FileTransport implements LogTransport {
     const stream = this.stream
     if (!stream) return
 
+    // 关闭前把背压期间积压的溢出队列写完（end 会等内部缓冲落盘）
+    if (this.droppedOverflowLines > 0) {
+      const dropped = this.droppedOverflowLines
+      this.droppedOverflowLines = 0
+      this.overflow.unshift(this.format(createLogRecord(
+        'warn',
+        `[@jl-org/log] Dropped ${dropped} log lines under file stream backpressure`
+      )))
+    }
+    for (const line of this.overflow) {
+      stream.write(line)
+    }
+    this.overflow = []
+
     await new Promise<void>((resolve) => {
       stream.end(() => resolve())
     })
@@ -143,6 +226,7 @@ export class FileTransport implements LogTransport {
       console.error(
         '[@jl-org/log] File logging needs the optional dependency "rotating-file-stream". Install it with: pnpm add rotating-file-stream'
       )
+      this.failInit()
       return
     }
 
@@ -167,21 +251,47 @@ export class FileTransport implements LogTransport {
       if (value !== undefined) rfsOpts[key] = value
     }
 
-    const stream = createStream(basename(filePath), rfsOpts)
+    let stream: RotatingStream
+    try {
+      stream = createStream(basename(filePath), rfsOpts)
+    }
+    catch (err) {
+      console.error('[@jl-org/log] Failed to create rotating file stream:', err)
+      this.failInit()
+      return
+    }
 
     stream.on('error', (err: Error) => {
       console.error('[@jl-org/log] File transport error:', err)
     })
+    stream.on('drain', () => this.flushOverflow(stream))
 
     this.stream = stream
+
+    // 就绪前缓冲有丢弃时先补一条 warn（被丢弃的是最旧的行，warn 放最前保持时序）
+    if (this.droppedBufferLines > 0) {
+      const dropped = this.droppedBufferLines
+      this.droppedBufferLines = 0
+      this.writeToStream(this.format(createLogRecord(
+        'warn',
+        `[@jl-org/log] Dropped ${dropped} buffered log lines while waiting for file stream init`
+      )))
+    }
 
     // 回放就绪前缓存的日志
     if (this.buffer.length) {
       for (const line of this.buffer) {
-        stream.write(line)
+        this.writeToStream(line)
       }
       this.buffer = []
     }
+  }
+
+  /** init 失败：置失败标记停止继续缓冲，并清空已积压的行，避免 buffer 涨到进程退出 */
+  private failInit(): void {
+    this.initFailed = true
+    this.buffer = []
+    this.droppedBufferLines = 0
   }
 
   private format(record: LogRecordPayload): string {

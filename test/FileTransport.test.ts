@@ -297,4 +297,146 @@ describe('NodeLogger 文件日志（rotating-file-stream）', () => {
     expect(rec.orderId).toBe('o-9')
     expect(String(rec.detail)).toContain('oops')
   })
+
+  it('就绪前缓冲封顶丢最旧，就绪回放时补一条丢弃 warn', async () => {
+    const file = join(dir, 'app.log')
+    const transport = new FileTransport({ path: file })
+
+    // init 是异步的（动态 import），同步连写 5500 行全部先进缓冲，触发封顶
+    for (let i = 0; i < 5500; i++) {
+      transport.write('info', `line ${i}`)
+    }
+    await transport.close()
+
+    const lines = (await readFile(file, 'utf8')).trim().split('\n')
+    // 5000 行保留 + 1 条丢弃 warn
+    expect(lines).toHaveLength(5001)
+
+    const recs = lines.map(l => JSON.parse(l))
+    expect(recs[0].level).toBe('warn')
+    expect(recs[0].msg).toContain('Dropped 500')
+    // 丢最旧：保留的是最后 5000 行
+    expect(recs[1].msg).toBe('line 500')
+    expect(recs[recs.length - 1].msg).toBe('line 5499')
+  })
+
+  it('maxBufferedLines 可配：就绪前缓冲按自定义上限封顶', async () => {
+    const file = join(dir, 'app.log')
+    const transport = new FileTransport({ path: file, maxBufferedLines: 10 })
+
+    for (let i = 0; i < 15; i++) {
+      transport.write('info', `line ${i}`)
+    }
+    await transport.close()
+
+    const lines = (await readFile(file, 'utf8')).trim().split('\n')
+    // 10 行保留 + 1 条丢弃 warn
+    expect(lines).toHaveLength(11)
+
+    const recs = lines.map(l => JSON.parse(l))
+    expect(recs[0].msg).toContain('Dropped 5')
+    // 丢最旧：保留的是最后 10 行
+    expect(recs[1].msg).toBe('line 5')
+    expect(recs[recs.length - 1].msg).toBe('line 14')
+  })
+
+  it('maxOverflowLines 可配：背压溢出队列按自定义上限封顶', async () => {
+    const file = join(dir, 'app.log')
+    const transport = new FileTransport({ path: file, maxOverflowLines: 5 })
+
+    // 白盒：注入假流模拟背压（同上，返回 false 时数据仍被流内部缓冲）
+    const written: string[] = []
+    let accept = true
+    const fake = {
+      write(chunk: string) {
+        written.push(chunk)
+        return accept
+      },
+      end(cb?: () => void) { cb?.() },
+      on() { return this },
+    }
+    ;(transport as any).stream = fake
+    ;(transport as any).ready = Promise.resolve()
+
+    // 背压：writable 置 false，后续进溢出队列
+    accept = false
+    transport.write('info', 'trigger backpressure')
+
+    for (let i = 0; i < 7; i++) {
+      transport.write('info', `overflow ${i}`)
+    }
+    expect((transport as any).overflow).toHaveLength(5)
+    expect((transport as any).droppedOverflowLines).toBe(2)
+
+    // drain 恢复：warn + 按序冲刷
+    accept = true
+    ;(transport as any).flushOverflow(fake)
+    expect((transport as any).overflow).toHaveLength(0)
+    expect(written[written.length - 1]).toContain('overflow 6')
+  })
+
+  it('建流抛错（非法 size）后清空积压并停止缓冲', async () => {
+    const file = join(dir, 'app.log')
+    // rfs 对非法 size 同步抛错，触发 init 失败路径
+    const transport = new FileTransport({ path: file, size: 'not-a-size' })
+
+    transport.write('info', 'first')
+    await (transport as any).ready
+
+    // 失败后继续写入不再积压
+    for (let i = 0; i < 100; i++) {
+      transport.write('info', `after ${i}`)
+    }
+    expect((transport as any).initFailed).toBe(true)
+    expect((transport as any).buffer).toHaveLength(0)
+
+    await transport.close()
+    expect(existsSync(file)).toBe(false)
+  })
+
+  it('write() 返回 false 时切有界溢出队列，drain 后带丢弃 warn 冲刷恢复', async () => {
+    const file = join(dir, 'app.log')
+    const transport = new FileTransport({ path: file })
+
+    // 白盒：注入假流模拟背压（返回 false 时数据仍被流内部缓冲，故 written 始终记录）
+    const written: string[] = []
+    let accept = true
+    const fake = {
+      write(chunk: string) {
+        written.push(chunk)
+        return accept
+      },
+      end(cb?: () => void) { cb?.() },
+      on() { return this },
+    }
+    ;(transport as any).stream = fake
+    ;(transport as any).ready = Promise.resolve()
+
+    transport.write('info', 'direct')
+    expect(written).toHaveLength(1)
+
+    // 背压：本条被流缓冲接收，但 writable 置 false
+    accept = false
+    transport.write('info', 'buffered by stream')
+    expect(written).toHaveLength(2)
+
+    // 后续写入进溢出队列，写满上限后再多写 2 行触发丢最旧
+    for (let i = 0; i < 5002; i++) {
+      transport.write('info', `overflow ${i}`)
+    }
+    expect(written).toHaveLength(2)
+    expect((transport as any).overflow).toHaveLength(5000)
+    expect((transport as any).droppedOverflowLines).toBe(2)
+
+    // drain 恢复：先补丢弃 warn，再按序冲刷，之后恢复直写
+    accept = true
+    ;(transport as any).flushOverflow(fake)
+    expect((transport as any).overflow).toHaveLength(0)
+    expect(written[2]).toContain('Dropped 2')
+    expect(written[3]).toContain('overflow 2')
+    expect(written[written.length - 1]).toContain('overflow 5001')
+
+    transport.write('info', 'direct again')
+    expect(written[written.length - 1]).toContain('direct again')
+  })
 })
